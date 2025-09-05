@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <title>CRM Frigorífico - Tester simple</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 20px; }
+    h1 { margin: 0 0 8px; }
+    small { color: #555; }
+    fieldset { margin: 16px 0; padding: 12px; }
+    legend { font-weight: 700; }
+    label { display: block; margin: 6px 0 2px; }
+    input, select, textarea { width: 100%; padding: 6px; }
+    button { margin-top: 8px; padding: 6px 10px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    details { margin: 10px 0; }
+    .out { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; border-radius: 6px; min-height: 60px;}
+    .danger { color: #a00; }
+    .help { font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>CRM Frigorífico — Tester</h1>
+  <small>Front minimal para probar API (pure HTML + JS). Guardá baseUrl / token / tenantId y usalos en todos los requests.</small>
+
+  <fieldset>
+    <legend>⚙️ Config</legend>
+    <div class="row">
+      <div>
+        <label>Base URL</label>
+        <input id="baseUrl" placeholder="http://localhost:3000"/>
+      </div>
+      <div>
+        <label>X-Tenant-Id</label>
+        <input id="tenantId" placeholder="1"/>
+      </div>
+    </div>
+    <label>Bearer Token</label>
+    <input id="token" placeholder="(opcional si tu API no requiere auth)"/>
+
+    <div class="row">
+      <button id="saveCfg">Guardar</button>
+      <button id="ping">Probar /health</button>
+    </div>
+    <div id="cfgOut" class="out"></div>
+  </fieldset>
+
+  <details open>
+    <summary><b>🧱 Unidades</b></summary>
+    <fieldset>
+      <legend>Crear Unidad</legend>
+      <div class="row">
+        <div><label>Nombre</label><input id="u_nombre" value="Kilogramo"></div>
+        <div><label>Simbolo</label><input id="u_simbolo" value="kg"></div>
+      </div>
+      <button id="u_create">POST /unidades</button>
+      <div id="u_out" class="out"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Listar Unidades</legend>
+      <div class="row3">
+        <div><label>q</label><input id="u_q" value=""></div>
+        <div><label>orderBy</label><input id="u_orderBy" value="nombre"></div>
+        <div><label>order</label>
+          <select id="u_order"><option>ASC</option><option>DESC</option></select>
+        </div>
+        <div><label>page</label><input id="u_page" value="1"></div>
+        <div><label>limit</label><input id="u_limit" value="10"></div>
+      </div>
+      <button id="u_list">GET /unidades</button>
+      <div id="u_list_out" class="out"></div>
+    </fieldset>
+  </details>
+
+  <details>
+    <summary><b>🥩 Productos</b></summary>
+    <fieldset>
+      <legend>Crear Producto</legend>
+      <div class="row">
+        <div><label>Nombre</label><input id="p_nombre" value="Bife Angosto"></div>
+        <div><label>SKU</label><input id="p_sku" value="BIFE-ANG-001"></div>
+      </div>
+      <div class="row">
+        <div><label>Unidad ID</label><input id="p_unidadId" placeholder="(id de unidad)"></div>
+        <div><label>Precio Base</label><input id="p_precioBase" value="7500.00"></div>
+      </div>
+      <label>Descripción</label><input id="p_desc" value="Corte premium">
+      <button id="p_create">POST /productos</button>
+      <div id="p_out" class="out"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Listar Productos</legend>
+      <div class="row3">
+        <div><label>q</label><input id="p_q" value=""></div>
+        <div><label>orderBy</label><input id="p_orderBy" value="nombre"></div>
+        <div>
+          <label>order</label>
+          <select id="p_order"><option>ASC</option><option>DESC</option></select>
+        </div>
+        <div><label>page</label><input id="p_page" value="1"></div>
+        <div><label>limit</label><input id="p_limit" value="10"></div>
+      </div>
+      <button id="p_list">GET /productos</button>
+      <div id="p_list_out" class="out"></div>
+    </fieldset>
+  </details>
+
+  <details>
+    <summary><b>💲 Precios por Producto (por Lista)</b></summary>
+    <fieldset>
+      <legend>Crear Precio</legend>
+      <div class="row">
+        <div><label>Lista ID</label><input id="pr_listaId" placeholder="(id lista)"></div>
+        <div><label>Producto ID</label><input id="pr_productoId" placeholder="(id producto)"></div>
+      </div>
+      <div class="row">
+        <div><label>Precio</label><input id="pr_precio" value="7500.00"></div>
+        <div><label>Vigencia Desde (YYYY-MM-DD)</label><input id="pr_desde" placeholder="2025-08-30"></div>
+      </div>
+      <button id="pr_create">POST /listas-precio/:listaId/precios</button>
+      <div class="help">El ID creado se mostrará en la respuesta para usar abajo.</div>
+      <div id="pr_out" class="out"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Listar / Obtener / Actualizar / Eliminar</legend>
+      <div class="row">
+        <div><label>Lista ID</label><input id="pr_listaId2"></div>
+        <div><label>Precio ID</label><input id="pr_precioId"></div>
+      </div>
+      <div class="row3">
+        <div><label>vigenciaEn</label><input id="pr_vig" placeholder="YYYY-MM-DD"></div>
+        <div><label>orderBy</label><input id="pr_orderBy" value="vigenciaDesde"></div>
+        <div>
+          <label>order</label>
+          <select id="pr_order"><option>ASC</option><option selected>DESC</option></select>
+        </div>
+      </div>
+      <div class="row">
+        <div><label>page</label><input id="pr_page" value="1"></div>
+        <div><label>limit</label><input id="pr_limit" value="20"></div>
+      </div>
+      <button id="pr_list">GET /listas-precio/:listaId/precios</button>
+      <button id="pr_get">GET /listas-precio/:listaId/precios/:precioId</button>
+      <div class="row">
+        <div><label>vigenciaHasta (PATCH)</label><input id="pr_hasta" placeholder="YYYY-MM-DD"></div>
+      </div>
+      <button id="pr_patch">PATCH precio</button>
+      <button id="pr_delete" class="danger">DELETE precio</button>
+      <div id="pr_list_out" class="out"></div>
+    </fieldset>
+  </details>
+
+  <details>
+    <summary><b>📄 Remitos</b></summary>
+    <fieldset>
+      <legend>Crear Remito</legend>
+      <div class="row">
+        <div><label>Fecha (YYYY-MM-DD)</label><input id="r_fecha" placeholder="2025-08-30"></div>
+        <div><label>Cliente ID</label><input id="r_clienteId"></div>
+      </div>
+      <label>Observaciones</label><input id="r_obs" value="venta cortes">
+      <h4>Ítem</h4>
+      <div class="row">
+        <div><label>Producto ID</label><input id="r_prodId"></div>
+        <div><label>Descripción</label><input id="r_desc" value="Producto"></div>
+      </div>
+      <div class="row">
+        <div><label>Cantidad (kg)</label><input id="r_cant" value="40.000"></div>
+        <div><label>Precio</label><input id="r_precio" value="7600.00"></div>
+      </div>
+      <button id="r_create">POST /remitos</button>
+      <div id="r_out" class="out"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Listar / Obtener / Actualizar / Eliminar</legend>
+      <div class="row3">
+        <div><label>desde</label><input id="r_desde"></div>
+        <div><label>hasta</label><input id="r_hasta"></div>
+        <div>
+          <label>order</label><select id="r_order"><option>ASC</option><option selected>DESC</option></select>
+        </div>
+        <div><label>orderBy</label><input id="r_orderBy" value="fecha"></div>
+        <div><label>page</label><input id="r_page" value="1"></div>
+        <div><label>limit</label><input id="r_limit" value="10"></div>
+      </div>
+      <button id="r_list">GET /remitos</button>
+      <div class="row">
+        <div><label>Remito ID</label><input id="r_id"></div>
+      </div>
+      <button id="r_get">GET /remitos/:id</button>
+      <h4>Reemplazar ítems</h4>
+      <div class="row">
+        <div><label>Producto ID</label><input id="r_up_prodId"></div>
+        <div><label>Descripción</label><input id="r_up_desc" value="Producto"></div>
+      </div>
+      <div class="row">
+        <div><label>Cantidad</label><input id="r_up_cant" value="40.000"></div>
+        <div><label>Precio</label><input id="r_up_precio" value="7600.00"></div>
+      </div>
+      <label>Observaciones</label><input id="r_up_obs" value="ajuste cantidades">
+      <button id="r_patch">PATCH /remitos/:id</button>
+      <button id="r_delete" class="danger">DELETE /remitos/:id</button>
+      <div id="r_list_out" class="out"></div>
+    </fieldset>
+  </details>
+
+  <details>
+    <summary><b>💳 Cobros</b></summary>
+    <fieldset>
+      <legend>Crear Cobro</legend>
+      <div class="row">
+        <div><label>Fecha (YYYY-MM-DD)</label><input id="c_fecha"></div>
+        <div><label>Cliente ID</label><input id="c_clienteId"></div>
+      </div>
+      <div class="row">
+        <div><label>Medio ID</label><input id="c_medioId"></div>
+        <div><label>Monto</label><input id="c_monto" value="50000.00"></div>
+      </div>
+      <label>Observaciones</label><input id="c_obs" value="Transferencia #ABC123">
+      <h4>Aplicaciones (opcional)</h4>
+      <div class="row">
+        <div><label>RemitoId #1</label><input id="c_r1"></div>
+        <div><label>Monto #1</label><input id="c_m1"></div>
+      </div>
+      <div class="row">
+        <div><label>RemitoId #2</label><input id="c_r2"></div>
+        <div><label>Monto #2</label><input id="c_m2"></div>
+      </div>
+      <button id="c_create">POST /cobros</button>
+      <div id="c_out" class="out"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Listar / Obtener / Actualizar / Eliminar</legend>
+      <div class="row">
+        <div><label>clienteId</label><input id="c_q_clienteId"></div>
+        <div><label>page</label><input id="c_page" value="1"></div>
+        <div><label>limit</label><input id="c_limit" value="10"></div>
+      </div>
+      <button id="c_list">GET /cobros</button>
+      <div class="row">
+        <div><label>Cobro ID</label><input id="c_id"></div>
+      </div>
+      <button id="c_get">GET /cobros/:id</button>
+      <h4>Actualizar</h4>
+      <div class="row">
+        <div><label>Monto</label><input id="c_up_monto" value="60000.00"></div>
+        <div><label>Observaciones</label><input id="c_up_obs" value="Ajuste de imputación"></div>
+      </div>
+      <h4>Aplicaciones (reimputar)</h4>
+      <div class="row">
+        <div><label>RemitoId #1</label><input id="c_up_r1"></div>
+        <div><label>Monto #1</label><input id="c_up_m1"></div>
+      </div>
+      <div class="row">
+        <div><label>RemitoId #2</label><input id="c_up_r2"></div>
+        <div><label>Monto #2</label><input id="c_up_m2"></div>
+      </div>
+      <button id="c_patch">PATCH /cobros/:id</button>
+      <button id="c_delete" class="danger">DELETE /cobros/:id</button>
+      <div id="c_list_out" class="out"></div>
+    </fieldset>
+  </details>
+
+  <details>
+    <summary><b>🏦 Medios de Cobro</b></summary>
+    <fieldset>
+      <legend>Crear Medio</legend>
+      <div class="row">
+        <div><label>Nombre</label><input id="m_nombre" value="Transferencia Banco Nación"></div>
+        <div><label>Tipo</label><input id="m_tipo" value="TRANSFERENCIA"></div>
+      </div>
+      <button id="m_create">POST /medios-cobro</button>
+      <div id="m_out" class="out"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Listar / Obtener / Actualizar / Eliminar</legend>
+      <div class="row">
+        <div><label>q</label><input id="m_q" value="transferencia"></div>
+        <div><label>Medio ID</label><input id="m_id"></div>
+      </div>
+      <button id="m_list">GET /medios-cobro</button>
+      <button id="m_get">GET /medios-cobro/:id</button>
+      <div class="row">
+        <div><label>activo</label><select id="m_activo"><option value="true">true</option><option value="false">false</option></select></div>
+      </div>
+      <button id="m_patch">PATCH /medios-cobro/:id</button>
+      <button id="m_delete" class="danger">DELETE /medios-cobro/:id</button>
+      <div id="m_list_out" class="out"></div>
+    </fieldset>
+  </details>
+
+  <details>
+    <summary><b>📚 Cuenta Corriente</b></summary>
+    <fieldset>
+      <legend>Saldos</legend>
+      <div class="row3">
+        <div><label>q</label><input id="cc_q"></div>
+        <div><label>filtro</label><input id="cc_filtro" value="todos"></div>
+        <div><label>orderBy</label><input id="cc_orderBy" value="saldo"></div>
+        <div><label>order</label><select id="cc_order"><option>ASC</option><option selected>DESC</option></select></div>
+        <div><label>page</label><input id="cc_page" value="1"></div>
+        <div><label>limit</label><input id="cc_limit" value="20"></div>
+      </div>
+      <button id="cc_saldos">GET /cuentas-corriente/saldos</button>
+      <div id="cc_saldos_out" class="out"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Saldo / Extracto / Remitos Abiertos</legend>
+      <div class="row">
+        <div><label>Cliente ID</label><input id="cc_clienteId"></div>
+        <div><label>desde</label><input id="cc_desde"></div>
+        <div><label>hasta</label><input id="cc_hasta"></div>
+      </div>
+      <button id="cc_saldo">GET /cuentas-corriente/:clienteId/saldo</button>
+      <button id="cc_extracto">GET /cuentas-corriente/:clienteId/extracto</button>
+      <button id="cc_abiertos">GET /cuentas-corriente/:clienteId/remitos-abiertos</button>
+      <div id="cc_det_out" class="out"></div>
+    </fieldset>
+  </details>
+
+  <details>
+    <summary><b>🧾 Ajustes Cuenta Corriente</b></summary>
+    <fieldset>
+      <legend>Crear Ajuste</legend>
+      <div class="row">
+        <div><label>Fecha (YYYY-MM-DD)</label><input id="aj_fecha"></div>
+        <div><label>Cliente ID</label><input id="aj_clienteId"></div>
+      </div>
+      <div class="row">
+        <div><label>Tipo (DEBE/HABER)</label><input id="aj_tipo" value="DEBE"></div>
+        <div><label>Monto</label><input id="aj_monto" value="1000.00"></div>
+      </div>
+      <div class="row">
+        <div><label>Motivo</label><input id="aj_motivo" value="CORRECCION"></div>
+        <div><label>Observaciones</label><input id="aj_obs" value="Corrección de saldo"></div>
+      </div>
+      <button id="aj_create">POST /ajustes-cc</button>
+      <div id="aj_out" class="out"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Listar / Obtener / Actualizar / Anular / Eliminar</legend>
+      <div class="row">
+        <div><label>Cliente ID (listar)</label><input id="aj_q_clienteId"></div>
+        <div><label>Ajuste ID</label><input id="aj_id"></div>
+      </div>
+      <button id="aj_list">GET /ajustes-cc</button>
+      <button id="aj_get">GET /ajustes-cc/:id</button>
+      <div class="row">
+        <div><label>Nuevo Monto</label><input id="aj_up_monto" value="900.00"></div>
+        <div><label>Nuevo Motivo</label><input id="aj_up_motivo" value="BONIFICACION"></div>
+      </div>
+      <label>Observaciones</label><input id="aj_up_obs" value="Bonificación aplicada">
+      <button id="aj_patch">PATCH /ajustes-cc/:id</button>
+      <button id="aj_anular">PATCH /ajustes-cc/:id/anular</button>
+      <button id="aj_delete" class="danger">DELETE /ajustes-cc/:id</button>
+      <div id="aj_list_out" class="out"></div>
+    </fieldset>
+  </details>
+
+  <details>
+    <summary><b>📥 Importar Excel</b></summary>
+    <fieldset>
+      <legend>POST /importaciones/remitos-excel</legend>
+      <input id="imp_file" type="file" accept=".xlsx,.xls"/>
+      <button id="imp_send">Importar</button>
+      <div id="imp_out" class="out"></div>
+    </fieldset>
+  </details>
+
+  <details>
+    <summary><b>📑 Reporte: Libro</b></summary>
+    <fieldset>
+      <legend>GET /reportes/libro</legend>
+      <div class="row3">
+        <div><label>tipo</label><select id="rep_tipo"><option value="">(todos)</option><option value="venta">venta</option><option value="cobro">cobro</option></select></div>
+        <div><label>fechaDesde</label><input id="rep_desde"></div>
+        <div><label>fechaHasta</label><input id="rep_hasta"></div>
+        <div><label>cliente (texto)</label><input id="rep_cliente"></div>
+        <div><label>producto (texto)</label><input id="rep_producto"></div>
+        <div><label>remito contiene</label><input id="rep_remito"></div>
+        <div><label>observaciones contiene</label><input id="rep_obs"></div>
+        <div><label>page</label><input id="rep_page" value="1"></div>
+        <div><label>limit</label><input id="rep_limit" value="50"></div>
+        <div><label>sortFecha</label><select id="rep_sort"><option>ASC</option><option>DESC</option></select></div>
+      </div>
+      <button id="rep_go">Consultar</button>
+      <div id="rep_out" class="out"></div>
+    </fieldset>
+  </details>
+
+<script>
+  function cfg() {
+    return {
+      baseUrl: document.getElementById('baseUrl').value.trim(),
+      token: document.getElementById('token').value.trim(),
+      tenantId: document.getElementById('tenantId').value.trim()
+    };
+  }
+
+  function saveCfg() {
+    const c = cfg();
+    localStorage.setItem('crm_baseUrl', c.baseUrl);
+    localStorage.setItem('crm_token', c.token);
+    localStorage.setItem('crm_tenantId', c.tenantId);
+    log('cfgOut', 'Guardado.');
+  }
+
+  function loadCfg() {
+    document.getElementById('baseUrl').value = localStorage.getItem('crm_baseUrl') || 'http://localhost:3000';
+    document.getElementById('token').value = localStorage.getItem('crm_token') || '';
+    document.getElementById('tenantId').value = localStorage.getItem('crm_tenantId') || '1';
+  }
+
+  function qs(obj) {
+    const p = Object.entries(obj).filter(([_,v]) => v !== '' && v != null).map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+    return p.length ? `?${p.join('&')}` : '';
+  }
+
+  async function apiFetch(method, path, body=null, query=null, isForm=false) {
+    const { baseUrl, token, tenantId } = cfg();
+    const url = baseUrl.replace(/\/$/, '') + path + (query ? qs(query) : '');
+    const headers = { 'X-Tenant-Id': tenantId };
+    if (!isForm) headers['Content-Type'] = 'application/json';
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: body ? (isForm ? body : JSON.stringify(body)) : undefined
+    });
+    const text = await res.text();
+    let json;
+    try { json = JSON.parse(text); } catch(e) { json = { raw: text }; }
+    return { status: res.status, data: json };
+  }
+
+  function log(id, obj) {
+    const el = document.getElementById(id);
+    el.textContent = (typeof obj === 'string') ? obj : JSON.stringify(obj, null, 2);
+  }
+
+  // Config & health
+  document.getElementById('saveCfg').onclick = saveCfg;
+  document.getElementById('ping').onclick = async () => {
+    const r = await apiFetch('GET', '/health');
+    log('cfgOut', r);
+  };
+
+  // Unidades
+  document.getElementById('u_create').onclick = async () => {
+    const body = { nombre: document.getElementById('u_nombre').value, simbolo: document.getElementById('u_simbolo').value };
+    const r = await apiFetch('POST', '/unidades', body);
+    log('u_out', r);
+  };
+  document.getElementById('u_list').onclick = async () => {
+    const q = {
+      q: document.getElementById('u_q').value,
+      orderBy: document.getElementById('u_orderBy').value,
+      order: document.getElementById('u_order').value,
+      page: document.getElementById('u_page').value,
+      limit: document.getElementById('u_limit').value
+    };
+    const r = await apiFetch('GET', '/unidades', null, q);
+    log('u_list_out', r);
+  };
+
+  // Productos
+  document.getElementById('p_create').onclick = async () => {
+    const body = {
+      nombre: document.getElementById('p_nombre').value,
+      sku: document.getElementById('p_sku').value,
+      unidadId: document.getElementById('p_unidadId').value,
+      precioBase: document.getElementById('p_precioBase').value,
+      descripcion: document.getElementById('p_desc').value
+    };
+    const r = await apiFetch('POST', '/productos', body);
+    log('p_out', r);
+  };
+  document.getElementById('p_list').onclick = async () => {
+    const q = {
+      q: document.getElementById('p_q').value,
+      orderBy: document.getElementById('p_orderBy').value,
+      order: document.getElementById('p_order').value,
+      page: document.getElementById('p_page').value,
+      limit: document.getElementById('p_limit').value
+    };
+    const r = await apiFetch('GET', '/productos', null, q);
+    log('p_list_out', r);
+  };
+
+  // Precios por Producto
+  document.getElementById('pr_create').onclick = async () => {
+    const listaId = document.getElementById('pr_listaId').value;
+    const body = {
+      productoId: document.getElementById('pr_productoId').value,
+      precio: document.getElementById('pr_precio').value,
+      vigenciaDesde: document.getElementById('pr_desde').value
+    };
+    const r = await apiFetch('POST', `/listas-precio/${encodeURIComponent(listaId)}/precios`, body);
+    log('pr_out', r);
+  };
+  document.getElementById('pr_list').onclick = async () => {
+    const listaId = document.getElementById('pr_listaId2').value;
+    const q = {
+      vigenciaEn: document.getElementById('pr_vig').value,
+      orderBy: document.getElementById('pr_orderBy').value,
+      order: document.getElementById('pr_order').value,
+      page: document.getElementById('pr_page').value,
+      limit: document.getElementById('pr_limit').value
+    };
+    const r = await apiFetch('GET', `/listas-precio/${encodeURIComponent(listaId)}/precios`, null, q);
+    log('pr_list_out', r);
+  };
+  document.getElementById('pr_get').onclick = async () => {
+    const listaId = document.getElementById('pr_listaId2').value;
+    const precioId = document.getElementById('pr_precioId').value;
+    const r = await apiFetch('GET', `/listas-precio/${encodeURIComponent(listaId)}/precios/${encodeURIComponent(precioId)}`);
+    log('pr_list_out', r);
+  };
+  document.getElementById('pr_patch').onclick = async () => {
+    const listaId = document.getElementById('pr_listaId2').value;
+    const precioId = document.getElementById('pr_precioId').value;
+    const body = { vigenciaHasta: document.getElementById('pr_hasta').value };
+    const r = await apiFetch('PATCH', `/listas-precio/${encodeURIComponent(listaId)}/precios/${encodeURIComponent(precioId)}`, body);
+    log('pr_list_out', r);
+  };
+  document.getElementById('pr_delete').onclick = async () => {
+    const listaId = document.getElementById('pr_listaId2').value;
+    const precioId = document.getElementById('pr_precioId').value;
+    const r = await apiFetch('DELETE', `/listas-precio/${encodeURIComponent(listaId)}/precios/${encodeURIComponent(precioId)}`);
+    log('pr_list_out', r);
+  };
+
+  // Remitos
+  document.getElementById('r_create').onclick = async () => {
+    const body = {
+      fecha: document.getElementById('r_fecha').value,
+      clienteId: document.getElementById('r_clienteId').value,
+      observaciones: document.getElementById('r_obs').value,
+      items: [{
+        productoId: document.getElementById('r_prodId').value,
+        descripcion: document.getElementById('r_desc').value,
+        cantidad: document.getElementById('r_cant').value,
+        precio: document.getElementById('r_precio').value
+      }]
+    };
+    const r = await apiFetch('POST', '/remitos', body);
+    log('r_out', r);
+  };
+  document.getElementById('r_list').onclick = async () => {
+    const q = {
+      desde: document.getElementById('r_desde').value,
+      hasta: document.getElementById('r_hasta').value,
+      orderBy: document.getElementById('r_orderBy').value,
+      order: document.getElementById('r_order').value,
+      page: document.getElementById('r_page').value,
+      limit: document.getElementById('r_limit').value
+    };
+    const r = await apiFetch('GET', '/remitos', null, q);
+    log('r_list_out', r);
+  };
+  document.getElementById('r_get').onclick = async () => {
+    const id = document.getElementById('r_id').value;
+    const r = await apiFetch('GET', `/remitos/${encodeURIComponent(id)}`);
+    log('r_list_out', r);
+  };
+  document.getElementById('r_patch').onclick = async () => {
+    const id = document.getElementById('r_id').value;
+    const body = {
+      observaciones: document.getElementById('r_up_obs').value,
+      items: [{
+        productoId: document.getElementById('r_up_prodId').value,
+        descripcion: document.getElementById('r_up_desc').value,
+        cantidad: document.getElementById('r_up_cant').value,
+        precio: document.getElementById('r_up_precio').value
+      }]
+    };
+    const r = await apiFetch('PATCH', `/remitos/${encodeURIComponent(id)}`, body);
+    log('r_list_out', r);
+  };
+  document.getElementById('r_delete').onclick = async () => {
+    const id = document.getElementById('r_id').value;
+    const r = await apiFetch('DELETE', `/remitos/${encodeURIComponent(id)}`);
+    log('r_list_out', r);
+  };
+
+  // Cobros
+  document.getElementById('c_create').onclick = async () => {
+    const apps = [];
+    const r1 = document.getElementById('c_r1').value, m1 = document.getElementById('c_m1').value;
+    const r2 = document.getElementById('c_r2').value, m2 = document.getElementById('c_m2').value;
+    if (r1 && m1) apps.push({ remitoId: r1, monto: m1 });
+    if (r2 && m2) apps.push({ remitoId: r2, monto: m2 });
+    const body = {
+      fecha: document.getElementById('c_fecha').value,
+      clienteId: document.getElementById('c_clienteId').value,
+      medioId: document.getElementById('c_medioId').value,
+      monto: document.getElementById('c_monto').value,
+      aplicaciones: apps,
+      observaciones: document.getElementById('c_obs').value
+    };
+    const r = await apiFetch('POST', '/cobros', body);
+    log('c_out', r);
+  };
+  document.getElementById('c_list').onclick = async () => {
+    const q = {
+      clienteId: document.getElementById('c_q_clienteId').value,
+      orderBy: 'fecha',
+      order: 'DESC',
+      page: document.getElementById('c_page').value,
+      limit: document.getElementById('c_limit').value
+    };
+    const r = await apiFetch('GET', '/cobros', null, q);
+    log('c_list_out', r);
+  };
+  document.getElementById('c_get').onclick = async () => {
+    const id = document.getElementById('c_id').value;
+    const r = await apiFetch('GET', `/cobros/${encodeURIComponent(id)}`);
+    log('c_list_out', r);
+  };
+  document.getElementById('c_patch').onclick = async () => {
+    const id = document.getElementById('c_id').value;
+    const apps = [];
+    const r1 = document.getElementById('c_up_r1').value, m1 = document.getElementById('c_up_m1').value;
+    const r2 = document.getElementById('c_up_r2').value, m2 = document.getElementById('c_up_m2').value;
+    if (r1 && m1) apps.push({ remitoId: r1, monto: m1 });
+    if (r2 && m2) apps.push({ remitoId: r2, monto: m2 });
+    const body = {
+      monto: document.getElementById('c_up_monto').value,
+      aplicaciones: apps,
+      observaciones: document.getElementById('c_up_obs').value
+    };
+    const r = await apiFetch('PATCH', `/cobros/${encodeURIComponent(id)}`, body);
+    log('c_list_out', r);
+  };
+  document.getElementById('c_delete').onclick = async () => {
+    const id = document.getElementById('c_id').value;
+    const r = await apiFetch('DELETE', `/cobros/${encodeURIComponent(id)}`);
+    log('c_list_out', r);
+  };
+
+  // Medios de cobro
+  document.getElementById('m_create').onclick = async () => {
+    const body = { nombre: document.getElementById('m_nombre').value, tipo: document.getElementById('m_tipo').value };
+    const r = await apiFetch('POST', '/medios-cobro', body);
+    log('m_out', r);
+  };
+  document.getElementById('m_list').onclick = async () => {
+    const q = { q: document.getElementById('m_q').value };
+    const r = await apiFetch('GET', '/medios-cobro', null, q);
+    log('m_list_out', r);
+  };
+  document.getElementById('m_get').onclick = async () => {
+    const id = document.getElementById('m_id').value;
+    const r = await apiFetch('GET', `/medios-cobro/${encodeURIComponent(id)}`);
+    log('m_list_out', r);
+  };
+  document.getElementById('m_patch').onclick = async () => {
+    const id = document.getElementById('m_id').value;
+    const body = { activo: document.getElementById('m_activo').value === 'true' };
+    const r = await apiFetch('PATCH', `/medios-cobro/${encodeURIComponent(id)}`, body);
+    log('m_list_out', r);
+  };
+  document.getElementById('m_delete').onclick = async () => {
+    const id = document.getElementById('m_id').value;
+    const r = await apiFetch('DELETE', `/medios-cobro/${encodeURIComponent(id)}`);
+    log('m_list_out', r);
+  };
+
+  // Cuenta Corriente
+  document.getElementById('cc_saldos').onclick = async () => {
+    const q = {
+      q: document.getElementById('cc_q').value,
+      filtro: document.getElementById('cc_filtro').value,
+      orderBy: document.getElementById('cc_orderBy').value,
+      order: document.getElementById('cc_order').value,
+      page: document.getElementById('cc_page').value,
+      limit: document.getElementById('cc_limit').value
+    };
+    const r = await apiFetch('GET', '/cuentas-corriente/saldos', null, q);
+    log('cc_saldos_out', r);
+  };
+  document.getElementById('cc_saldo').onclick = async () => {
+    const id = document.getElementById('cc_clienteId').value;
+    const r = await apiFetch('GET', `/cuentas-corriente/${encodeURIComponent(id)}/saldo`);
+    log('cc_det_out', r);
+  };
+  document.getElementById('cc_extracto').onclick = async () => {
+    const id = document.getElementById('cc_clienteId').value;
+    const q = { desde: document.getElementById('cc_desde').value, hasta: document.getElementById('cc_hasta').value, order: 'ASC', page: 1, limit: 100 };
+    const r = await apiFetch('GET', `/cuentas-corriente/${encodeURIComponent(id)}/extracto`, null, q);
+    log('cc_det_out', r);
+  };
+  document.getElementById('cc_abiertos').onclick = async () => {
+    const id = document.getElementById('cc_clienteId').value;
+    const r = await apiFetch('GET', `/cuentas-corriente/${encodeURIComponent(id)}/remitos-abiertos`);
+    log('cc_det_out', r);
+  };
+
+  // Ajustes CC
+  document.getElementById('aj_create').onclick = async () => {
+    const body = {
+      fecha: document.getElementById('aj_fecha').value,
+      clienteId: document.getElementById('aj_clienteId').value,
+      tipo: document.getElementById('aj_tipo').value,
+      motivo: document.getElementById('aj_motivo').value,
+      monto: document.getElementById('aj_monto').value,
+      observaciones: document.getElementById('aj_obs').value
+    };
+    const r = await apiFetch('POST', '/ajustes-cc', body);
+    log('aj_out', r);
+  };
+  document.getElementById('aj_list').onclick = async () => {
+    const q = { clienteId: document.getElementById('aj_q_clienteId').value, orderBy: 'fecha', order: 'DESC', page: 1, limit: 20 };
+    const r = await apiFetch('GET', '/ajustes-cc', null, q);
+    log('aj_list_out', r);
+  };
+  document.getElementById('aj_get').onclick = async () => {
+    const id = document.getElementById('aj_id').value;
+    const r = await apiFetch('GET', `/ajustes-cc/${encodeURIComponent(id)}`);
+    log('aj_list_out', r);
+  };
+  document.getElementById('aj_patch').onclick = async () => {
+    const id = document.getElementById('aj_id').value;
+    const body = { monto: document.getElementById('aj_up_monto').value, motivo: document.getElementById('aj_up_motivo').value, observaciones: document.getElementById('aj_up_obs').value };
+    const r = await apiFetch('PATCH', `/ajustes-cc/${encodeURIComponent(id)}`, body);
+    log('aj_list_out', r);
+  };
+  document.getElementById('aj_anular').onclick = async () => {
+    const id = document.getElementById('aj_id').value;
+    const r = await apiFetch('PATCH', `/ajustes-cc/${encodeURIComponent(id)}/anular`);
+    log('aj_list_out', r);
+  };
+  document.getElementById('aj_delete').onclick = async () => {
+    const id = document.getElementById('aj_id').value;
+    const r = await apiFetch('DELETE', `/ajustes-cc/${encodeURIComponent(id)}`);
+    log('aj_list_out', r);
+  };
+
+  // Importar Excel
+  document.getElementById('imp_send').onclick = async () => {
+    const f = document.getElementById('imp_file').files[0];
+    if (!f) { log('imp_out', { error: 'Seleccioná un archivo' }); return; }
+    const fd = new FormData();
+    fd.append('file', f);
+    const r = await apiFetch('POST', '/importaciones/remitos-excel', fd, null, true);
+    log('imp_out', r);
+  };
+
+  // Reporte Libro
+  document.getElementById('rep_go').onclick = async () => {
+    const q = {
+      tipo: document.getElementById('rep_tipo').value,
+      fechaDesde: document.getElementById('rep_desde').value,
+      fechaHasta: document.getElementById('rep_hasta').value,
+      cliente: document.getElementById('rep_cliente').value,
+      producto: document.getElementById('rep_producto').value,
+      remito: document.getElementById('rep_remito').value,
+      observaciones: document.getElementById('rep_obs').value,
+      page: document.getElementById('rep_page').value,
+      limit: document.getElementById('rep_limit').value,
+      sortFecha: document.getElementById('rep_sort').value
+    };
+    const r = await apiFetch('GET', '/reportes/libro', null, q);
+    log('rep_out', r);
+  };
+
+  loadCfg();
+</script>
+</body>
+</html>
