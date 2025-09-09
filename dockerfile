@@ -33,6 +33,11 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 
+RUN npm ls bcrypt || echo "bcrypt NOT installed"
+RUN npm ls bcryptjs || true
+# Y ver que en /app/dist no quede ningún require('bcrypt'):
+RUN grep -R "require('bcrypt')" dist || echo "OK sin require('bcrypt')"
+
 # Instala solo prod deps
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --omit=dev
