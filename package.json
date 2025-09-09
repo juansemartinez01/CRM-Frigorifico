@@ -4,14 +4,12 @@
   "description": "CRM Multi-tenant (NestJS + TypeORM + JWT)",
   "license": "MIT",
   "scripts": {
-  "start": "node dist/main.js",
-  "start:dev": "nest start --watch",
-  "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.build.json",
-  "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-  "test": "jest"
-}
-,
-
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.build.json",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test": "jest"
+  },
   "dependencies": {
     "@nestjs/common": "^10.3.7",
     "@nestjs/config": "^3.3.0",
@@ -21,6 +19,7 @@
     "@nestjs/platform-express": "^10.3.7",
     "@nestjs/typeorm": "^10.0.0",
     "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "dotenv": "^16.4.5",
