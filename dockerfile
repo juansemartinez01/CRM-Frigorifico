@@ -1,35 +1,50 @@
 # syntax=docker/dockerfile:1.7
-FROM node:20-alpine
 
+########################
+# 1) Deps + Build (con devDeps) - Node 18 glibc
+########################
+FROM node:18-bullseye-slim AS builder
 WORKDIR /app
 
-# Fuerza modo dev para instalar devDependencies
+# toolchain para compilar nativos (typescript/bcrypt si hace falta durante build)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=development
 ENV NPM_CONFIG_PRODUCTION=false
 
 COPY package*.json ./
-
-# Instalar con devDeps (cachea el directorio de npm)
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --include=dev
 
-# Copiar el resto del código
 COPY . .
 
-# (opcional) normalizar finales de línea y permisos en bins
-RUN apk add --no-cache dos2unix \
- && find node_modules/.bin -type f -print0 | xargs -0 -I{} dos2unix "{}" || true \
- && chmod -R +x node_modules/.bin || true
-
-# Diagnóstico útil en logs (debería mostrar production=false y typescript presente)
-RUN node -v && npm -v && echo "npm production=$(npm config get production)" && npm ls typescript || true
-
-# Compilar (usa el script modificado que llama a tsc vía node)
+# Compila TS (script que llama a tsc vía node, como te pasé antes)
 RUN npm run build
 
-# Pasar a prod y podar devDeps
+
+########################
+# 2) Runtime (solo prod) - Node 18 glibc
+########################
+FROM node:18-bullseye-slim AS runner
+WORKDIR /app
 ENV NODE_ENV=production
-RUN npm prune --omit=dev
+
+COPY package*.json ./
+
+# Instala solo prod deps
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev
+
+# Recompila bcrypt para este sistema (garantiza ABI correcto)
+RUN npm rebuild bcrypt --build-from-source
+
+# Copia artefactos compilados
+COPY --from=builder /app/dist ./dist
+
+# Si usás archivos estáticos en runtime, copiarlos también
+# COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 CMD ["node", "dist/main.js"]
