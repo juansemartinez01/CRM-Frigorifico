@@ -11,6 +11,7 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { Public } from '@app/auth/public.decorator';
 
 @Controller('users')
 export class UsersController {
@@ -33,6 +34,7 @@ export class UsersController {
     return this.service.findOne(id);
   }
 
+  @Public()
   @Post()
   create(@Body() dto: CreateUserDto) {
     return this.service.create(dto);
