@@ -1,11 +1,12 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { APP_GUARD, Reflector } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 // Importaremos nuestros módulos de dominio más adelante
 // import { ClienteModule } from './modules/cliente/cliente.module';
 
-import { TenantMiddleware } from './common/multi-tenant/tenant.middleware';
+
 import { RazonSocialModule } from './modules/razon-social/razon-social.module';
 import { MovimientoCtaCteModule } from './modules/mov-cta-cte/movimiento-cta-cte.module';
 import { ClienteModule } from './modules/cliente/cliente.module';
@@ -15,6 +16,13 @@ import { RevendedorModule } from './modules/revendedor/revendedor.module';
 import { TenantBaseEntity } from './common/entities/tenant-base.entity';
 import { PedidoImportModule } from './modules/pedido-import/pedido-import.module';
 import { PedidoResolucionModule } from './modules/pedido-resolucion/pedido-resolucion.module';
+
+
+import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { RolesGuard } from './auth/roles.guard';
+import { TenantGuard } from './common/guards/tenant.guard';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -46,6 +54,8 @@ import { PedidoResolucionModule } from './modules/pedido-resolucion/pedido-resol
         };
       },
     }),
+    AuthModule,
+    UsersModule,
     RazonSocialModule,
 
     RevendedorModule,
@@ -56,9 +66,10 @@ import { PedidoResolucionModule } from './modules/pedido-resolucion/pedido-resol
     PedidoImportModule,
     PedidoResolucionModule,
   ],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: TenantGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(TenantMiddleware).forRoutes('*');
-  }
-}
+export class AppModule {}
