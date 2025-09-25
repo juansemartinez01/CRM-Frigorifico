@@ -14,14 +14,23 @@ import { UsersModule } from '@app/modules/users/users.module';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
-        secret: cfg.get<string>('JWT_SECRET'),
-        signOptions: {
-          issuer: cfg.get<string>('JWT_ISSUER') || undefined,
-          audience: cfg.get<string>('JWT_AUDIENCE') || undefined,
-          expiresIn: '8h',
-        },
-      }),
+      useFactory: (cfg: ConfigService) => {
+        const secret = cfg.get<string>('JWT_SECRET');
+        if (!secret) throw new Error('JWT_SECRET no está definido');
+
+        const issuer = cfg.get<string>('JWT_ISSUER'); // opcional
+        const audience = cfg.get<string>('JWT_AUDIENCE'); // opcional
+        const expiresIn = cfg.get<string>('JWT_EXPIRES_IN') ?? '8h';
+
+        return {
+          secret,
+          signOptions: {
+            expiresIn,
+            ...(issuer ? { issuer } : {}),
+            ...(audience ? { audience } : {}),
+          },
+        };
+      },
     }),
   ],
   providers: [JwtStrategy, AuthService],
