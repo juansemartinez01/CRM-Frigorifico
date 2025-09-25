@@ -24,17 +24,27 @@ import { PedidoResolucionModule } from './modules/pedido-resolucion/pedido-resol
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
-        type: 'postgres',
-        host: cfg.get('DB_HOST'),
-        port: cfg.get<number>('DB_PORT'),
-        username: cfg.get('DB_USER'),
-        password: cfg.get('DB_PASS'),
-        database: cfg.get('DB_NAME'),
-        autoLoadEntities: true,
-        synchronize: cfg.get('DB_SYNCHRONIZE') === 'true',
-        logging: cfg.get('DB_LOGGING') === 'true',
-      }),
+      useFactory: (cfg: ConfigService) => {
+        const url = cfg.get<string>('DATABASE_URL');
+        if (!url) throw new Error('DATABASE_URL no está definida');
+
+        // SSL opcional (útil para Railway/Render/Neon/Heroku, etc.)
+        const enableSsl =
+          cfg.get('DB_SSL') === 'true' ||
+          cfg.get('DATABASE_SSL') === 'true' ||
+          url.includes('sslmode=require');
+
+        return {
+          type: 'postgres',
+          url, // <-- usamos la URL
+          autoLoadEntities: true,
+          synchronize: cfg.get('DB_SYNCHRONIZE') === 'true',
+          logging: cfg.get('DB_LOGGING') === 'true',
+          ssl: enableSsl ? { rejectUnauthorized: false } : false,
+          // algunos providers requieren también extra.ssl
+          extra: enableSsl ? { ssl: { rejectUnauthorized: false } } : undefined,
+        };
+      },
     }),
     RazonSocialModule,
 
