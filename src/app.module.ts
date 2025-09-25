@@ -23,6 +23,7 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { TenantGuard } from './common/guards/tenant.guard';
 import { UsersModule } from './modules/users/users.module';
+import { TenantModule } from './modules/tenant/tenant.module';
 
 @Module({
   imports: [
@@ -57,7 +58,7 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     UsersModule,
     RazonSocialModule,
-
+    TenantModule,
     RevendedorModule,
     ClienteModule,
     PedidoModule,
