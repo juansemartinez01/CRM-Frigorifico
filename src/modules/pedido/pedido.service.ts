@@ -4,10 +4,11 @@ import {
   Scope,
   Inject,
   BadRequestException,
+  ConflictException,
   
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere, DataSource } from 'typeorm';
+import { Repository, FindOptionsWhere, DataSource, QueryFailedError } from 'typeorm';
 import { REQUEST } from '@nestjs/core';  
 import { Request } from 'express';
 import { getTenantIdFromReq } from '@app/common/multi-tenant/tenant.util';
@@ -24,7 +25,7 @@ export class PedidoService {
   constructor(
     @InjectRepository(Pedido) private repo: Repository<Pedido>,
     @Inject(REQUEST) private readonly req: Request,
-    
+
     private ds: DataSource,
   ) {}
 
@@ -110,6 +111,22 @@ export class PedidoService {
       });
       if (!pedido) throw new NotFoundException('Pedido no encontrado');
 
+      // ⛔ Pre-chequeo: ¿ya confirmado?
+      const existente = await m
+        .getRepository(MovimientoCuentaCorriente)
+        .findOne({
+          where: { tenantId, tipo: 'VENTA', pedidoId: pedido.id },
+        });
+      if (existente) {
+        throw new ConflictException({
+          code: 'ALREADY_CONFIRMED',
+          message: 'Este pedido ya fue confirmado previamente.',
+          movimientoId: existente.id,
+          monto: existente.monto,
+          fecha: existente.fecha,
+        });
+      }
+
       // actualizar cliente final y precios
       const kg = Number(pedido.kg ?? 0);
       const total = +(kg * precioUnit).toFixed(2);
@@ -118,33 +135,38 @@ export class PedidoService {
       pedido.precioUnitario = precioUnit.toFixed(2);
       pedido.precioTotal = total.toFixed(2);
       if (dto.observaciones) {
-        // opcional: concatenar
         pedido.observaciones = [pedido.observaciones, dto.observaciones]
           .filter(Boolean)
           .join(' | ');
       }
       await m.getRepository(Pedido).save(pedido);
 
-      // crear/actualizar movimiento ligado al pedido (VENTA)
-      let mov = await m.getRepository(MovimientoCuentaCorriente).findOne({
-        where: { tenantId, tipo: 'VENTA', pedidoId: pedido.id },
+      // Crear movimiento ligado al pedido (VENTA)
+      const mov = m.getRepository(MovimientoCuentaCorriente).create({
+        tenantId,
+        clienteId: dto.clienteId,
+        tipo: 'VENTA',
+        fecha: pedido.fechaRemito ?? new Date(),
+        monto: total.toFixed(2),
+        pedidoId: pedido.id,
       });
 
-      if (!mov) {
-        mov = m.getRepository(MovimientoCuentaCorriente).create({
-          tenantId,
-          clienteId: dto.clienteId,
-          tipo: 'VENTA',
-          fecha: pedido.fechaRemito ?? new Date(),
-          monto: total.toFixed(2),
-          pedidoId: pedido.id,
-        });
-      } else {
-        mov.clienteId = dto.clienteId;
-        mov.fecha = pedido.fechaRemito ?? mov.fecha;
-        mov.monto = total.toFixed(2);
+      try {
+        await m.getRepository(MovimientoCuentaCorriente).save(mov);
+      } catch (err) {
+        // 🧯 Colisión concurrente: índice único (tenant, tipo, pedidoId)
+        if (
+          err instanceof QueryFailedError &&
+          // @ts-ignore — pg driver
+          err.driverError?.code === '23505'
+        ) {
+          throw new ConflictException({
+            code: 'ALREADY_CONFIRMED',
+            message: 'Este pedido ya fue confirmado previamente.',
+          });
+        }
+        throw err;
       }
-      await m.getRepository(MovimientoCuentaCorriente).save(mov);
 
       return {
         ok: true,
