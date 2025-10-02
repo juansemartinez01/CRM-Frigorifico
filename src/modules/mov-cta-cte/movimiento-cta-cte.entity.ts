@@ -7,11 +7,12 @@ export type TipoMovimiento = 'VENTA' | 'COBRO';
 
 
 
+
+@Entity('movimiento_cta_cte')
 @Index('ux_mov_tenant_tipo_pedido', ['tenantId', 'tipo', 'pedidoId'], {
   unique: true,
   where: `"pedido_id" IS NOT NULL`,
 })
-@Entity('movimiento_cta_cte')
 @Index('ix_mov_tenant', ['tenantId'])
 @Index('ix_mov_cliente', ['clienteId'])
 export class MovimientoCuentaCorriente extends TenantBaseEntity {
