@@ -24,7 +24,7 @@ export class PedidoService {
   constructor(
     @InjectRepository(Pedido) private repo: Repository<Pedido>,
     @Inject(REQUEST) private readonly req: Request,
-    private movRepo: Repository<MovimientoCuentaCorriente>,
+    
     private ds: DataSource,
   ) {}
 
