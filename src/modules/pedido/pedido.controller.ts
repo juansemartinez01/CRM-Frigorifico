@@ -7,12 +7,14 @@ import {
   Put,
   Delete,
   Query,
+  Patch,
 } from '@nestjs/common';
 import { PedidoService } from './pedido.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
 import { BuscarPedidoDto } from './dto/buscar-pedido.dto';
 import { ConfirmarPedidoDto } from './dto/confirmar-pedido.dto';
+import { ModificarConfirmacionDto } from './dto/modificar-confirmacion.dto';
 
 @Controller('pedidos')
 export class PedidoController {
@@ -46,5 +48,10 @@ export class PedidoController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.service.remove(id);
+  }
+
+  @Patch('confirmar')
+  modificarConfirmacion(@Body() dto: ModificarConfirmacionDto) {
+    return this.service.modificarConfirmacion(dto);
   }
 }
