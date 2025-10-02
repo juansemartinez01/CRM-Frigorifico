@@ -5,6 +5,7 @@ export class CreateClienteDto {
   @Length(11, 20)
   cuit!: string;
 
+  @IsOptional()
   @IsUUID()
   razonSocialId!: string;
 

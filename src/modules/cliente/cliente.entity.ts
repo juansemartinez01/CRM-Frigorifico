@@ -22,11 +22,11 @@ export class Cliente extends TenantBaseEntity {
   @Column({ type: 'varchar', length: 200, nullable: true })
   email?: string | null;
 
-  @ManyToOne(() => RazonSocial, { eager: true, nullable: false })
+  @ManyToOne(() => RazonSocial, { eager: true, nullable: true })
   @JoinColumn({ name: 'razon_social_id' })
   razonSocial!: RazonSocial;
 
-  @Column({ name: 'razon_social_id', type: 'uuid', nullable: false })
+  @Column({ name: 'razon_social_id', type: 'uuid', nullable: true })
   razonSocialId!: string;
 
   @ManyToOne(() => Revendedor, { eager: true, nullable: true })
