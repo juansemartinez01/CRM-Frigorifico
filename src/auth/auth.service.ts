@@ -47,15 +47,33 @@ export class AuthService {
     };
   }
 
-  async login(email: string, password: string, tenant: string) {
-    const user = await this.users.findByEmail(
-      email.toLowerCase().trim(),
-      tenant,
-    );
+  /** Login con derivación automática de tenant si no se envía. */
+  async login(email: string, password: string, tenant?: string) {
+    const emailNorm = email.toLowerCase().trim();
+
+    let user: User | null = null;
+
+    if (tenant) {
+      user = await this.users.findByEmail(emailNorm, tenant);
+    } else {
+      const candidates = await this.users.findAllTenantsByEmail(emailNorm);
+      if (candidates.length === 0)
+        throw new UnauthorizedException('Credenciales inválidas');
+      if (candidates.length > 1) {
+        // Por seguridad, no devolvemos la lista de tenants
+        throw new BadRequestException(
+          'Este email está asociado a varias organizaciones. Indique el tenant.',
+        );
+      }
+      user = candidates[0];
+    }
+
     if (!user || !user.isActive)
       throw new UnauthorizedException('Credenciales inválidas');
+
     const ok = await this.users.validatePassword(user, password);
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');
+
     return this.signForUser(user);
   }
 

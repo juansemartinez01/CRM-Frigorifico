@@ -1,13 +1,19 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Role } from './roles.enum';
 import { Public } from './public.decorator';
 import { LoginDto } from '@app/modules/users/dto/login.dto';
 import { RegisterDto } from '@app/modules/users/dto/register.dto';
+import { tenantFromHeader, tenantFromHost } from '@app/common/multi-tenant/tenant-hints.util';
+import { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(private readonly auth: AuthService,
+    private readonly cfg: ConfigService
+  ) {}
+  
 
   @Public()
   @Post('dev-login')
@@ -24,8 +30,20 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  login(@Body() body: LoginDto) {
-    return this.auth.login(body.email, body.password, body.tenant);
+  login(@Body() body: LoginDto, @Req() req: Request) {
+    // Orden de hints: body.tenant -> header -> subdominio
+    const fromBody = body.tenant?.trim();
+    const fromHeader = tenantFromHeader(
+      req,
+      this.cfg.get('TENANT_HEADER') || 'X-Tenant-Id',
+    );
+    const fromHost = tenantFromHost(
+      req,
+      this.cfg.get('BASE_DOMAIN') || undefined,
+    );
+
+    const hint = fromBody || fromHeader || fromHost;
+    return this.auth.login(body.email, body.password, hint);
   }
 
   @Public()

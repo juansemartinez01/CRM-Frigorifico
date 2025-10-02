@@ -7,4 +7,7 @@ import { TenantBaseEntity } from '@app/common/entities/tenant-base.entity';
 export class Revendedor extends TenantBaseEntity {
   @Column({ type: 'varchar', length: 20, nullable: false })
   cuit!: string;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  nombre?: string | null;
 }

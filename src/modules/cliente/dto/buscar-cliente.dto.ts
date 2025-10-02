@@ -1,4 +1,4 @@
-import { IsOptional, IsUUID, IsString, Length, IsIn } from 'class-validator';
+import { IsOptional, IsUUID, IsString, Length, IsIn, MaxLength } from 'class-validator';
 import { PageQueryDto } from '@app/common/pagination/page-query.dto';
 
 export class BuscarClienteDto extends PageQueryDto {
@@ -18,4 +18,9 @@ export class BuscarClienteDto extends PageQueryDto {
   @IsOptional()
   @IsIn(['cuit', 'createdAt'])
   sortBy?: 'cuit' | 'createdAt' = 'createdAt';
+
+  @IsOptional() @IsString() @MaxLength(120) nombre?: string;
+  @IsOptional() @IsString() @MaxLength(120) apellido?: string;
+  @IsOptional() @IsString() @MaxLength(200) email?: string;
+  @IsOptional() @IsString() @MaxLength(30) telefono?: string;
 }

@@ -105,4 +105,12 @@ export class UsersService {
   async validatePassword(user: User, plain: string) {
     return argon2.verify(user.passwordHash, plain);
   }
+
+  /** Busca por email en todos los tenants (para login sin tenant). */
+  async findAllTenantsByEmail(email: string) {
+    return this.repo.find({
+      where: { email: email.toLowerCase().trim(), isActive: true },
+      // NUNCA devolver passwordHash fuera del servicio de auth
+    });
+  }
 }

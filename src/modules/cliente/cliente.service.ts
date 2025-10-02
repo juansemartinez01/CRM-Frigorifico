@@ -85,6 +85,13 @@ export class ClienteService {
     if (f.revendedorId)
       qb.andWhere('c.revendedorId = :rvid', { rvid: f.revendedorId });
 
+    if (f.nombre) qb.andWhere('c.nombre ILIKE :nom', { nom: `%${f.nombre}%` });
+    if (f.apellido)
+      qb.andWhere('c.apellido ILIKE :ape', { ape: `%${f.apellido}%` });
+    if (f.email) qb.andWhere('c.email ILIKE :em', { em: `%${f.email}%` });
+    if (f.telefono)
+      qb.andWhere('c.telefono ILIKE :tel', { tel: `%${f.telefono}%` });
+
     const sortBy = f.sortBy === 'cuit' ? 'c.cuit' : /* default */ 'c.createdAt';
     qb.orderBy(sortBy, f.sortDir || 'DESC');
 

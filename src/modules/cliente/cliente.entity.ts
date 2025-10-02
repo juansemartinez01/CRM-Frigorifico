@@ -10,6 +10,18 @@ export class Cliente extends TenantBaseEntity {
   @Column({ type: 'varchar', length: 20, nullable: false })
   cuit!: string;
 
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  nombre?: string | null;
+
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  apellido?: string | null;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  telefono?: string | null;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  email?: string | null;
+
   @ManyToOne(() => RazonSocial, { eager: true, nullable: false })
   @JoinColumn({ name: 'razon_social_id' })
   razonSocial!: RazonSocial;
