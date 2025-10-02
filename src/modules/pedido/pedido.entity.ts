@@ -35,4 +35,22 @@ export class Pedido extends TenantBaseEntity {
 
   @Column({ type: 'text', nullable: true })
   observaciones?: string | null;
+
+  @Column({
+    name: 'precio_unitario',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
+  precioUnitario?: string | null;
+
+  @Column({
+    name: 'precio_total',
+    type: 'numeric',
+    precision: 14,
+    scale: 2,
+    nullable: true,
+  })
+  precioTotal?: string | null;
 }

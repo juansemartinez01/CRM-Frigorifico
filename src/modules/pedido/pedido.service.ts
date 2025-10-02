@@ -3,10 +3,11 @@ import {
   NotFoundException,
   Scope,
   Inject,
+  BadRequestException,
   
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere } from 'typeorm';
+import { Repository, FindOptionsWhere, DataSource } from 'typeorm';
 import { REQUEST } from '@nestjs/core';  
 import { Request } from 'express';
 import { getTenantIdFromReq } from '@app/common/multi-tenant/tenant.util';
@@ -15,12 +16,16 @@ import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
 import { BuscarPedidoDto } from './dto/buscar-pedido.dto';
 import { paginate, Paginated } from '@app/common/pagination/pagination.util';
+import { MovimientoCuentaCorriente } from '../mov-cta-cte/movimiento-cta-cte.entity';
+import { ConfirmarPedidoDto } from './dto/confirmar-pedido.dto';
 
 @Injectable({ scope: Scope.REQUEST })
 export class PedidoService {
   constructor(
     @InjectRepository(Pedido) private repo: Repository<Pedido>,
     @Inject(REQUEST) private readonly req: Request,
+    private movRepo: Repository<MovimientoCuentaCorriente>,
+    private ds: DataSource,
   ) {}
 
   private whereTenant(extra?: FindOptionsWhere<Pedido>) {
@@ -85,5 +90,67 @@ export class PedidoService {
 
   private tenantId() {
     return getTenantIdFromReq(this.req);
+  }
+
+  /*
+   * Confirma un pedido asignando cliente definitivo y precio por kilo,
+   * calcula el total e impacta un movimiento de VENTA ligado al pedido.
+   * Idempotente: (tenant, tipo=VENTA, pedidoId) único.
+   */
+  async confirmarPedido(dto: ConfirmarPedidoDto) {
+    const tenantId = this.tenantId();
+    const precioUnit = Number(dto.precioUnitario);
+    if (!isFinite(precioUnit) || precioUnit <= 0) {
+      throw new BadRequestException('precioUnitario inválido');
+    }
+
+    return this.ds.transaction(async (m) => {
+      const pedido = await m.getRepository(Pedido).findOne({
+        where: { tenantId, id: dto.pedidoId },
+      });
+      if (!pedido) throw new NotFoundException('Pedido no encontrado');
+
+      // actualizar cliente final y precios
+      const kg = Number(pedido.kg ?? 0);
+      const total = +(kg * precioUnit).toFixed(2);
+
+      pedido.clienteId = dto.clienteId;
+      pedido.precioUnitario = precioUnit.toFixed(2);
+      pedido.precioTotal = total.toFixed(2);
+      if (dto.observaciones) {
+        // opcional: concatenar
+        pedido.observaciones = [pedido.observaciones, dto.observaciones]
+          .filter(Boolean)
+          .join(' | ');
+      }
+      await m.getRepository(Pedido).save(pedido);
+
+      // crear/actualizar movimiento ligado al pedido (VENTA)
+      let mov = await m.getRepository(MovimientoCuentaCorriente).findOne({
+        where: { tenantId, tipo: 'VENTA', pedidoId: pedido.id },
+      });
+
+      if (!mov) {
+        mov = m.getRepository(MovimientoCuentaCorriente).create({
+          tenantId,
+          clienteId: dto.clienteId,
+          tipo: 'VENTA',
+          fecha: pedido.fechaRemito ?? new Date(),
+          monto: total.toFixed(2),
+          pedidoId: pedido.id,
+        });
+      } else {
+        mov.clienteId = dto.clienteId;
+        mov.fecha = pedido.fechaRemito ?? mov.fecha;
+        mov.monto = total.toFixed(2);
+      }
+      await m.getRepository(MovimientoCuentaCorriente).save(mov);
+
+      return {
+        ok: true,
+        pedido,
+        movimiento: mov,
+      };
+    });
   }
 }

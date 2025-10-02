@@ -12,6 +12,7 @@ import { PedidoService } from './pedido.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
 import { BuscarPedidoDto } from './dto/buscar-pedido.dto';
+import { ConfirmarPedidoDto } from './dto/confirmar-pedido.dto';
 
 @Controller('pedidos')
 export class PedidoController {
@@ -20,6 +21,11 @@ export class PedidoController {
   @Post()
   create(@Body() dto: CreatePedidoDto) {
     return this.service.create(dto);
+  }
+
+  @Post('confirmar')
+  confirmar(@Body() dto: ConfirmarPedidoDto) {
+    return this.service.confirmarPedido(dto);
   }
 
   @Get()
