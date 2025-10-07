@@ -20,6 +20,7 @@ import { paginate, Paginated } from '@app/common/pagination/pagination.util';
 import { MovimientoCuentaCorriente } from '../mov-cta-cte/movimiento-cta-cte.entity';
 import { ConfirmarPedidoDto } from './dto/confirmar-pedido.dto';
 import { ModificarConfirmacionDto } from './dto/modificar-confirmacion.dto';
+import { Cliente } from '@app/modules/cliente/cliente.entity';
 
 @Injectable({ scope: Scope.REQUEST })
 export class PedidoService {
@@ -128,6 +129,14 @@ export class PedidoService {
         });
       }
 
+      // 👉 cargar y asignar el cliente definitivo (para refrescar la relación eager)
+      const cRepo = m.getRepository(Cliente);
+      const cliente = await cRepo.findOne({
+        where: { tenantId, id: dto.clienteId },
+      });
+      if (!cliente)
+        throw new NotFoundException('Cliente destino no encontrado');
+
       // actualizar cliente final y precios
       const kg = Number(pedido.kg ?? 0);
       const total = +(kg * precioUnit).toFixed(2);
@@ -147,7 +156,7 @@ export class PedidoService {
       }
 
       pedido.confirmado = true;
-      
+
       await m.getRepository(Pedido).save(pedido);
 
       // Crear movimiento ligado al pedido (VENTA)
