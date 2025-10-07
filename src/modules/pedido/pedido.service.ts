@@ -142,6 +142,7 @@ export class PedidoService {
       const total = +(kg * precioUnit).toFixed(2);
 
       pedido.clienteId = dto.clienteId;
+      pedido.cliente = cliente;  
       pedido.precioUnitario = precioUnit.toFixed(2);
       pedido.precioTotal = total.toFixed(2);
 
