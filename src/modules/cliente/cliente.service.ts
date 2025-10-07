@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { REQUEST } from '@nestjs/core';  
-import { Repository, FindOptionsWhere } from 'typeorm';
+import { Repository, FindOptionsWhere, DataSource } from 'typeorm';
 import { Cliente } from './cliente.entity';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
@@ -15,12 +15,14 @@ import { Request } from 'express';
 import { getTenantIdFromReq } from '@app/common/multi-tenant/tenant.util';
 import { BuscarClienteDto } from './dto/buscar-cliente.dto';
 import { paginate, Paginated } from '@app/common/pagination/pagination.util';
+import { CuentaCorriente } from '../cuenta-corriente/cuenta-corriente.entity';
 
 @Injectable({ scope: Scope.REQUEST })
 export class ClienteService {
   constructor(
     @InjectRepository(Cliente) private repo: Repository<Cliente>,
     @Inject(REQUEST) private readonly req: Request,
+    private readonly ds: DataSource,
   ) {}
 
   private tenantId() {
@@ -32,9 +34,29 @@ export class ClienteService {
   }
 
   async create(dto: CreateClienteDto) {
-    const tenantId = getTenantIdFromReq(this.req);
-    const entity = this.repo.create({ ...dto, tenantId });
-    return this.repo.save(entity);
+    const tenantId = this.tenantId();
+    return this.ds.transaction(async (m) => {
+      // crear cliente
+      const cRepo = m.getRepository(Cliente);
+      const entity = cRepo.create({ ...dto, tenantId });
+      const saved = await cRepo.save(entity);
+
+      // asegurar cuenta corriente (única por tenant+cliente)
+      const ccRepo = m.getRepository(CuentaCorriente);
+      const exists = await ccRepo.findOne({
+        where: { tenantId, clienteId: saved.id },
+      });
+      if (!exists) {
+        const cc = ccRepo.create({
+          tenantId,
+          clienteId: saved.id,
+          saldo: '0.00',
+        });
+        await ccRepo.save(cc);
+      }
+
+      return saved;
+    });
   }
 
   async findAll() {
