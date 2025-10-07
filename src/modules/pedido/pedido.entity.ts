@@ -36,6 +36,14 @@ export class Pedido extends TenantBaseEntity {
   @Column({ type: 'text', nullable: true })
   observaciones?: string | null;
 
+  // debajo de "observaciones":
+  @Column({ type: 'text', nullable: true })
+  nota?: string | null;
+
+  // al final (o donde prefieras):
+  @Column({ type: 'boolean', default: false })
+  confirmado!: boolean;
+
   @Column({
     name: 'precio_unitario',
     type: 'numeric',

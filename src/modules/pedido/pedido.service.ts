@@ -135,11 +135,19 @@ export class PedidoService {
       pedido.clienteId = dto.clienteId;
       pedido.precioUnitario = precioUnit.toFixed(2);
       pedido.precioTotal = total.toFixed(2);
+
+      if (dto.nota) {
+        pedido.nota = dto.nota;
+      }
+
       if (dto.observaciones) {
         pedido.observaciones = [pedido.observaciones, dto.observaciones]
           .filter(Boolean)
           .join(' | ');
       }
+
+      pedido.confirmado = true;
+      
       await m.getRepository(Pedido).save(pedido);
 
       // Crear movimiento ligado al pedido (VENTA)

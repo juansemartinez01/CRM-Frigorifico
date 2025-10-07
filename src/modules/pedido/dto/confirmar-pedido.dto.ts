@@ -14,4 +14,8 @@ export class ConfirmarPedidoDto {
   @IsOptional()
   @IsString()
   observaciones?: string;
+
+  @IsOptional()
+  @IsString()
+  nota?: string;
 }
