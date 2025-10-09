@@ -229,7 +229,7 @@ export class PedidoImportService {
     ];
     const processed: any[] = [];
     const created: string[] = [];
-    const duplicates: string[] = []; 
+    const duplicates: string[] = [];
     const unresolved: string[] = [];
     const warnings: string[] = [];
     const errors: string[] = [];
@@ -259,8 +259,8 @@ export class PedidoImportService {
       const numeroRemito = String(r.REMITO ?? '').trim();
       const cuit = this.normalizeCuit(r.CUIT_CLIENTE);
       const articulo = String(r.ARTICULO ?? '').trim();
-      const cantidad = this.toDecStr(r.CANTIDAD, 2);
-      const kilos = this.toDecStr(r.KILOS, 3);
+      const cantidadStr = this.toDecStr(r.CANTIDAD, 2);
+      const kilosStr = this.toDecStr(r.KILOS, 3);
       const clienteNombre = String(r.CLIENTE ?? '').trim();
 
       if (!numeroRemito || !articulo) {
@@ -270,7 +270,6 @@ export class PedidoImportService {
         continue;
       }
 
-      // ...
       try {
         let note: string | undefined;
         let clienteId: string;
@@ -279,18 +278,22 @@ export class PedidoImportService {
           const res = await this.resolveClienteIdByCuit(cuit);
           clienteId = res.clienteId;
           note = res.note;
+          // (opcional) marcar pendientes si hay ambigüedad
+          if (res.note?.includes('múltiples')) {
+            unresolved.push(
+              `Fila ${idx + 2}: ${res.note} | Remito=${numeroRemito} | Art=${articulo}`,
+            );
+          }
         } else {
           const noReg = await this.ensureNoRegistradoCliente();
           clienteId = noReg.id;
           note = `CUIT vacío. Asociado a 'No registrado'.`;
         }
 
-        // Normalizamos para que coincida con la firma del índice único
+        // Normalizaciones para la firma única
         const fechaStr = this.yyyy_mm_dd(fr);
         const numeroRemitoTrim = numeroRemito.trim();
         const articuloTrim = articulo.trim();
-        const cantidadStr = this.toDecStr(cantidad, 2);
-        const kilosStr = this.toDecStr(kilos, 3);
         const observaciones =
           [note, clienteNombre ? `ClienteExcel="${clienteNombre}"` : null]
             .filter(Boolean)
@@ -298,7 +301,8 @@ export class PedidoImportService {
 
         const insertedId = await this.ds.transaction(async (m) => {
           const pRepo = m.getRepository(Pedido);
-          const entity = pRepo.create({
+
+          const values = {
             tenantId: this.tenantId(),
             clienteId,
             fechaRemito: fechaStr,
@@ -307,18 +311,19 @@ export class PedidoImportService {
             cantidad: cantidadStr,
             kg: kilosStr,
             observaciones,
-          });
+          };
 
-          try {
-            const saved = await pRepo.save(entity);
-            return saved.id as string;
-          } catch (e: any) {
-            // 23505 = unique_violation (PostgreSQL)
-            if (e?.code === '23505') {
-              return null; // duplicado: ya existe con la misma firma
-            }
-            throw e; // cualquier otro error, lo propagamos
-          }
+          // INSERT ... ON CONFLICT DO NOTHING (idempotente por índice único)
+          const result = await pRepo
+            .createQueryBuilder()
+            .insert()
+            .into(Pedido)
+            .values(values)
+            .orIgnore() // evita duplicados a nivel DB
+            .returning('id') // PG: devuelve id si insertó
+            .execute();
+
+          return (result.identifiers?.[0]?.id as string) ?? null;
         });
 
         if (insertedId) {
@@ -332,8 +337,6 @@ export class PedidoImportService {
       } catch (e: any) {
         errors.push(`Fila ${idx + 2}: ${e?.message ?? 'Error desconocido'}`);
       }
-
-      // ...
 
       processed.push({ row: idx + 2, remito: numeroRemito });
     }
