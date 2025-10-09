@@ -227,12 +227,30 @@ export class PedidoImportService {
       'CANTIDAD',
       'KILOS',
     ];
-    const processed: any[] = [];
+
+    // Métricas
+    const processedRows: number[] = [];
     const created: string[] = [];
     const duplicates: string[] = [];
     const unresolved: string[] = [];
     const warnings: string[] = [];
     const errors: string[] = [];
+
+    // --- AGRUPACIÓN POR (REMITO, ARTICULO) ---
+    type Group = {
+      remito: string;
+      articulo: string;
+      // usamos la fecha mínima del grupo (en práctica debería ser la misma)
+      fechaRemito: string;
+      // sumatorias
+      cantidadSum: number;
+      kgSum: number;
+      // tomamos el primer cliente resuelto; si difiere en el grupo, lo anotamos en observaciones
+      clienteId: string;
+      notes: Set<string>;
+      clientesExcel: Set<string>; // valores de columna CLIENTE del excel
+    };
+    const groups = new Map<string, Group>();
 
     for (let idx = 0; idx < rows.length; idx++) {
       const r = rows[idx];
@@ -257,18 +275,18 @@ export class PedidoImportService {
       if (fr < fechaD) continue; // filtrar por fecha DESDE
 
       const numeroRemito = String(r.REMITO ?? '').trim();
-      const cuit = this.normalizeCuit(r.CUIT_CLIENTE);
       const articulo = String(r.ARTICULO ?? '').trim();
-      const cantidadStr = this.toDecStr(r.CANTIDAD, 2);
-      const kilosStr = this.toDecStr(r.KILOS, 3);
-      const clienteNombre = String(r.CLIENTE ?? '').trim();
-
       if (!numeroRemito || !articulo) {
         warnings.push(
           `Fila ${idx + 2}: REMITO o ARTICULO vacío. Se ignora fila.`,
         );
         continue;
       }
+
+      const cuit = this.normalizeCuit(r.CUIT_CLIENTE);
+      const cantidadStr = this.toDecStr(r.CANTIDAD, 2);
+      const kilosStr = this.toDecStr(r.KILOS, 3);
+      const clienteNombre = String(r.CLIENTE ?? '').trim();
 
       try {
         let note: string | undefined;
@@ -278,7 +296,6 @@ export class PedidoImportService {
           const res = await this.resolveClienteIdByCuit(cuit);
           clienteId = res.clienteId;
           note = res.note;
-          // (opcional) marcar pendientes si hay ambigüedad
           if (res.note?.includes('múltiples')) {
             unresolved.push(
               `Fila ${idx + 2}: ${res.note} | Remito=${numeroRemito} | Art=${articulo}`,
@@ -290,70 +307,118 @@ export class PedidoImportService {
           note = `CUIT vacío. Asociado a 'No registrado'.`;
         }
 
-        // Normalizaciones para la firma única
+        const key = `${numeroRemito}||${articulo}`;
         const fechaStr = this.yyyy_mm_dd(fr);
-        const numeroRemitoTrim = numeroRemito.trim();
-        const articuloTrim = articulo.trim();
-        const observaciones =
-          [note, clienteNombre ? `ClienteExcel="${clienteNombre}"` : null]
-            .filter(Boolean)
-            .join(' | ') || null;
+        const cantidadNum = Number(cantidadStr);
+        const kgNum = Number(kilosStr);
 
-        const insertedId = await this.ds.transaction(async (m) => {
+        let g = groups.get(key);
+        if (!g) {
+          g = {
+            remito: numeroRemito,
+            articulo,
+            fechaRemito: fechaStr,
+            cantidadSum: isFinite(cantidadNum) ? cantidadNum : 0,
+            kgSum: isFinite(kgNum) ? kgNum : 0,
+            clienteId,
+            notes: new Set<string>(),
+            clientesExcel: new Set<string>(),
+          };
+          groups.set(key, g);
+        } else {
+          // sumar cantidades/pesos
+          if (isFinite(cantidadNum)) g.cantidadSum += cantidadNum;
+          if (isFinite(kgNum)) g.kgSum += kgNum;
+
+          // fecha mínima del grupo
+          if (fechaStr < g.fechaRemito) g.fechaRemito = fechaStr;
+
+          // si cambia el cliente dentro del mismo grupo, lo anotamos
+          if (g.clienteId !== clienteId) {
+            g.notes.add(
+              `Grupo con clientes distintos (primer clienteId=${g.clienteId}, otro=${clienteId})`,
+            );
+          }
+        }
+
+        if (note) g.notes.add(note);
+        if (clienteNombre) g.clientesExcel.add(clienteNombre);
+
+        processedRows.push(idx + 2);
+      } catch (e: any) {
+        errors.push(`Fila ${idx + 2}: ${e?.message ?? 'Error desconocido'}`);
+      }
+    }
+
+    // --- INSERT POR GRUPO (idempotente con orIgnore) ---
+    for (const g of groups.values()) {
+      const observaciones =
+        [
+          ...g.notes,
+          g.clientesExcel.size
+            ? `ClienteExcel="${Array.from(g.clientesExcel).join(', ')}"`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' | ') || null;
+
+      try {
+        const id = await this.ds.transaction(async (m) => {
           const pRepo = m.getRepository(Pedido);
 
           const values = {
             tenantId: this.tenantId(),
-            clienteId,
-            fechaRemito: fechaStr,
-            numeroRemito: numeroRemitoTrim,
-            articulo: articuloTrim,
-            cantidad: cantidadStr,
-            kg: kilosStr,
+            clienteId: g.clienteId,
+            fechaRemito: g.fechaRemito,
+            numeroRemito: g.remito,
+            articulo: g.articulo,
+            cantidad: g.cantidadSum.toFixed(2), // ⬅️ sumatoria de CANTIDAD
+            kg: g.kgSum.toFixed(3), // ⬅️ sumatoria de KILOS (lo que pediste)
             observaciones,
           };
 
-          // INSERT ... ON CONFLICT DO NOTHING (idempotente por índice único)
           const result = await pRepo
             .createQueryBuilder()
             .insert()
             .into(Pedido)
             .values(values)
-            .orIgnore() // evita duplicados a nivel DB
-            .returning('id') // PG: devuelve id si insertó
+            .orIgnore() // ON CONFLICT DO NOTHING (requiere índice único de firma)
+            .returning('id') // PG: retorna id si insertó
             .execute();
 
           return (result.identifiers?.[0]?.id as string) ?? null;
         });
 
-        if (insertedId) {
-          created.push(insertedId);
+        if (id) {
+          created.push(id);
         } else {
-          // Duplicado saltado (mismo tenant_id, fecha_remito, numero_remito, articulo, cantidad, kg)
           duplicates.push(
-            `${fechaStr} | ${numeroRemitoTrim} | ${articuloTrim} | ${cantidadStr} | ${kilosStr}`,
+            `${g.fechaRemito} | ${g.remito} | ${g.articulo} | ${g.cantidadSum.toFixed(
+              2,
+            )} | ${g.kgSum.toFixed(3)}`,
           );
         }
       } catch (e: any) {
-        errors.push(`Fila ${idx + 2}: ${e?.message ?? 'Error desconocido'}`);
+        errors.push(
+          `Grupo REMITO="${g.remito}" ART="${g.articulo}": ${e?.message ?? 'Error desconocido'}`,
+        );
       }
-
-      processed.push({ row: idx + 2, remito: numeroRemito });
     }
 
     return {
       ok: true,
       resumen: {
         filasLeidas: rows.length,
-        procesadas: processed.length,
+        filasConocidas: processedRows.length,
+        gruposProcesados: groups.size,
         creadas: created.length,
         duplicadosSaltados: duplicates.length,
         pendientesResolucion: unresolved.length,
         warnings: warnings.length,
         errors: errors.length,
       },
-      pendientes: unresolved.slice(0, 100),
       duplicados: duplicates.slice(0, 100),
+      pendientes: unresolved.slice(0, 100),
       warnings: warnings.slice(0, 100),
       errors: errors.slice(0, 100),
     };
