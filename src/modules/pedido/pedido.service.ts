@@ -195,6 +195,7 @@ export class PedidoService {
     });
   }
 
+  
   async deleteNoConfirmados() {
     const tenantId = this.tenantId();
 
