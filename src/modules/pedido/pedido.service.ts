@@ -21,6 +21,7 @@ import { MovimientoCuentaCorriente } from '../mov-cta-cte/movimiento-cta-cte.ent
 import { ConfirmarPedidoDto } from './dto/confirmar-pedido.dto';
 import { ModificarConfirmacionDto } from './dto/modificar-confirmacion.dto';
 import { Cliente } from '@app/modules/cliente/cliente.entity';
+import { CuentaCorriente } from '../cuenta-corriente/cuenta-corriente.entity';
 
 @Injectable({ scope: Scope.REQUEST })
 export class PedidoService {
@@ -187,11 +188,29 @@ export class PedidoService {
         throw err;
       }
 
+      // ⬇️⬇️ NUEVO: actualizar saldo de cuenta corriente
+      const ccRepo = m.getRepository(CuentaCorriente);
+      let cuenta = await ccRepo.findOne({
+        where: { tenantId, clienteId: dto.clienteId },
+      });
+      if (!cuenta) {
+        cuenta = ccRepo.create({
+          tenantId,
+          clienteId: dto.clienteId,
+          saldo: '0.00',
+        });
+      }
+      const nuevoSaldo = +(Number(cuenta.saldo ?? 0) + total).toFixed(2);
+      cuenta.saldo = nuevoSaldo.toFixed(2);
+      await ccRepo.save(cuenta);
+
       return {
         ok: true,
         pedido,
         movimiento: mov,
       };
+
+      
     });
   }
 
