@@ -54,4 +54,9 @@ export class PedidoController {
   modificarConfirmacion(@Body() dto: ModificarConfirmacionDto) {
     return this.service.modificarConfirmacion(dto);
   }
+
+  @Delete('no-confirmados')
+  deleteNoConfirmados() {
+    return this.service.deleteNoConfirmados();
+  }
 }

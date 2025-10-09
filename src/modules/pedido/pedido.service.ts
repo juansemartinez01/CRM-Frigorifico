@@ -142,7 +142,7 @@ export class PedidoService {
       const total = +(kg * precioUnit).toFixed(2);
 
       pedido.clienteId = dto.clienteId;
-      pedido.cliente = cliente;  
+      pedido.cliente = cliente;
       pedido.precioUnitario = precioUnit.toFixed(2);
       pedido.precioTotal = total.toFixed(2);
 
@@ -193,6 +193,18 @@ export class PedidoService {
         movimiento: mov,
       };
     });
+  }
+
+  async deleteNoConfirmados() {
+    const tenantId = this.tenantId();
+
+    // Elimina en bloque: (tenantId = req.user.tid) AND (confirmado = false)
+    const res = await this.repo.delete({ tenantId, confirmado: false });
+
+    return {
+      ok: true,
+      deleted: res.affected ?? 0,
+    };
   }
 
   /**
