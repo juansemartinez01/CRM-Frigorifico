@@ -45,6 +45,11 @@ export class PedidoController {
     return this.service.update(id, dto);
   }
 
+  @Delete('no-confirmados')
+  deleteNoConfirmados() {
+    return this.service.deleteNoConfirmados();
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.service.remove(id);
@@ -53,10 +58,5 @@ export class PedidoController {
   @Patch('confirmar')
   modificarConfirmacion(@Body() dto: ModificarConfirmacionDto) {
     return this.service.modificarConfirmacion(dto);
-  }
-
-  @Delete('no-confirmados')
-  deleteNoConfirmados() {
-    return this.service.deleteNoConfirmados();
   }
 }
