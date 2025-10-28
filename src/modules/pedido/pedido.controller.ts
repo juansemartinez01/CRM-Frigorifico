@@ -30,6 +30,11 @@ export class PedidoController {
     return this.service.confirmarPedido(dto);
   }
 
+  @Get('por-remito/:numero')
+  async getPorRemito(@Param('numero') numero: string) {
+    return this.service.getPorRemito(numero);
+  }
+
   @Get()
   search(@Query() filtros: BuscarPedidoDto) {
     return this.service.search(filtros);

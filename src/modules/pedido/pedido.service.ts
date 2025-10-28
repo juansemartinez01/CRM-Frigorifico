@@ -28,7 +28,8 @@ export class PedidoService {
   constructor(
     @InjectRepository(Pedido) private repo: Repository<Pedido>,
     @Inject(REQUEST) private readonly req: Request,
-
+    @InjectRepository(CuentaCorriente)
+    private ccRepo: Repository<CuentaCorriente>,
     private ds: DataSource,
   ) {}
 
@@ -209,12 +210,9 @@ export class PedidoService {
         pedido,
         movimiento: mov,
       };
-
-      
     });
   }
 
-  
   async deleteNoConfirmados() {
     const tenantId = this.tenantId();
 
@@ -314,5 +312,46 @@ export class PedidoService {
         movimiento: mov,
       };
     });
+  }
+
+  async getPorRemito(numeroRemito: string) {
+    const tenantId = this.tenantId();
+
+    // Traemos todos los pedidos de ese remito (con cliente eager)
+    const pedidos = await this.repo.find({
+      where: { tenantId, numeroRemito },
+      order: { fechaRemito: 'ASC', articulo: 'ASC', createdAt: 'ASC' },
+    });
+
+    if (!pedidos.length) {
+      throw new NotFoundException('No hay pedidos para ese número de remito');
+    }
+
+    // En la práctica, el remito corresponde a un único cliente.
+    // Igual validamos por si hubiera inconsistencias:
+    const clienteIds = Array.from(new Set(pedidos.map((p) => p.clienteId)));
+    const clienteId = clienteIds[0];
+    const cliente = pedidos[0].cliente; // eager
+
+    // Saldo de cuenta corriente (si no existe aún, saldo 0.00)
+    const ctacte = await this.ccRepo.findOne({
+      where: { tenantId, clienteId },
+    });
+
+    const saldo = ctacte?.saldo ?? '0.00';
+
+    const warning =
+      clienteIds.length > 1
+        ? `Advertencia: el remito "${numeroRemito}" tiene más de un cliente asociado (${clienteIds.length}). Se muestra el saldo del primer cliente.`
+        : undefined;
+
+    return {
+      ok: true,
+      numeroRemito,
+      cliente,
+      saldoCuentaCorriente: saldo,
+      warning,
+      filas: pedidos, // las mismas columnas que ves en la grilla (eager trae cliente)
+    };
   }
 }
