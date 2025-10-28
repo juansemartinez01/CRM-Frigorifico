@@ -48,6 +48,8 @@ export class MovimientoCtaCteService {
     const qb = this.repo
       .createQueryBuilder('m')
       .leftJoinAndSelect('m.cliente', 'c')
+      .leftJoinAndSelect('m.pedido', 'p') // 👈 incluye todos los campos del pedido
+      .leftJoinAndSelect('p.cliente', 'pc') // 👈 (opcional) cliente del pedido
       .where('m.tenantId = :tenantId', { tenantId: this.tenantId() });
 
     if (f.clienteId)
@@ -56,7 +58,6 @@ export class MovimientoCtaCteService {
     if (f.fechaDesde) qb.andWhere('m.fecha >= :fd', { fd: f.fechaDesde });
     if (f.fechaHasta) qb.andWhere('m.fecha <= :fh', { fh: f.fechaHasta });
 
-    // Comparaciones por rango de monto
     if (f.montoMin) qb.andWhere('m.monto >= :min', { min: f.montoMin });
     if (f.montoMax) qb.andWhere('m.monto <= :max', { max: f.montoMax });
 

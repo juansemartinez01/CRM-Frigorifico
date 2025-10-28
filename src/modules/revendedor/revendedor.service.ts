@@ -3,6 +3,7 @@ import {
   NotFoundException,
   Scope,
   Inject,
+  BadRequestException,
   
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -27,10 +28,21 @@ export class RevendedorService {
   }
 
   async create(dto: CreateRevendedorDto) {
-    const entity = this.repo.create({
-      ...dto,
-      tenantId: getTenantIdFromReq(this.req),
-    });
+    const tenantId = getTenantIdFromReq(this.req);
+
+    if (dto.cuit) {
+      const dup = await this.repo.findOne({
+        where: { tenantId, cuit: dto.cuit },
+      });
+      if (dup) {
+        const display = dup.nombre || dup.cuit;
+        throw new BadRequestException(
+          `El CUIT ${dto.cuit} ya existe y pertenece al revendedor "${display}".`,
+        );
+      }
+    }
+
+    const entity = this.repo.create({ ...dto, tenantId });
     return this.repo.save(entity);
   }
 
@@ -46,6 +58,17 @@ export class RevendedorService {
 
   async update(id: string, dto: UpdateRevendedorDto) {
     const row = await this.findOne(id);
+    if (dto.cuit && dto.cuit !== row.cuit) {
+      const dup = await this.repo.findOne({
+        where: { tenantId: getTenantIdFromReq(this.req), cuit: dto.cuit },
+      });
+      if (dup) {
+        const display = dup.nombre || dup.cuit;
+        throw new BadRequestException(
+          `El CUIT ${dto.cuit} ya existe y pertenece al revendedor "${display}".`,
+        );
+      }
+    }
     Object.assign(row, dto);
     return this.repo.save(row);
   }

@@ -35,24 +35,37 @@ export class ClienteService {
 
   async create(dto: CreateClienteDto) {
     const tenantId = this.tenantId();
+
+    // Pre-chequeo de CUIT duplicado
+    if (dto.cuit) {
+      const dup = await this.repo.findOne({
+        where: { tenantId, cuit: dto.cuit },
+      });
+      if (dup) {
+        const display =
+          [dup.nombre, dup.apellido].filter(Boolean).join(' ').trim() ||
+          dup.email ||
+          dup.cuit;
+        throw new BadRequestException(
+          `El CUIT ${dto.cuit} ya existe y pertenece al cliente "${display}".`,
+        );
+      }
+    }
+
     return this.ds.transaction(async (m) => {
-      // crear cliente
       const cRepo = m.getRepository(Cliente);
       const entity = cRepo.create({ ...dto, tenantId });
       const saved = await cRepo.save(entity);
 
-      // asegurar cuenta corriente (única por tenant+cliente)
+      // asegurar cuenta corriente
       const ccRepo = m.getRepository(CuentaCorriente);
       const exists = await ccRepo.findOne({
         where: { tenantId, clienteId: saved.id },
       });
       if (!exists) {
-        const cc = ccRepo.create({
-          tenantId,
-          clienteId: saved.id,
-          saldo: '0.00',
-        });
-        await ccRepo.save(cc);
+        await ccRepo.save(
+          ccRepo.create({ tenantId, clienteId: saved.id, saldo: '0.00' }),
+        );
       }
 
       return saved;
@@ -71,6 +84,23 @@ export class ClienteService {
 
   async update(id: string, dto: UpdateClienteDto) {
     const row = await this.findOne(id);
+
+    // si envían cuit y es distinto, validar duplicado
+    if (dto.cuit && dto.cuit !== row.cuit) {
+      const dup = await this.repo.findOne({
+        where: { tenantId: this.tenantId(), cuit: dto.cuit },
+      });
+      if (dup) {
+        const display =
+          [dup.nombre, dup.apellido].filter(Boolean).join(' ').trim() ||
+          dup.email ||
+          dup.cuit;
+        throw new BadRequestException(
+          `El CUIT ${dto.cuit} ya existe y pertenece al cliente "${display}".`,
+        );
+      }
+    }
+
     Object.assign(row, dto);
     return this.repo.save(row);
   }
