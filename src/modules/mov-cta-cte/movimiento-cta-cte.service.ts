@@ -31,6 +31,12 @@ export class MovimientoCtaCteService {
       // 1) crear movimiento
       const movRepo = m.getRepository(MovimientoCuentaCorriente);
       const mov = movRepo.create({ ...dto, tenantId: this.tenantId() });
+
+      // normalización de nota
+      if (typeof dto.nota === 'string') {
+        mov.nota = dto.nota.trim() || null;
+      }
+
       const saved = await movRepo.save(mov);
       // 2) aplicar al saldo
       await this.ctaService.applyMovimiento(dto.clienteId, dto.tipo, dto.monto);
@@ -150,6 +156,12 @@ export class MovimientoCtaCteService {
       original.fecha = newFecha;
       original.monto = newMontoNum.toFixed(2);
       original.pedidoId = newPedidoId;
+
+      if (Object.prototype.hasOwnProperty.call(dto, 'nota')) {
+        // permitir limpiar con string vacío -> null
+        const n = (dto.nota ?? '').toString().trim();
+        original.nota = n ? n : null;
+      }
 
       try {
         await movRepo.save(original);

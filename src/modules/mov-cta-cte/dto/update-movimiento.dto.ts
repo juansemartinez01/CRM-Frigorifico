@@ -4,6 +4,8 @@ import {
   IsIn,
   IsDateString,
   IsNumberString,
+  MaxLength,
+  IsString,
 } from 'class-validator';
 import { TipoMovimiento } from '../movimiento-cta-cte.entity';
 
@@ -28,4 +30,9 @@ export class UpdateMovimientoDto {
   @IsOptional()
   @IsUUID()
   pedidoId?: string | null; // enviar null explícito para desvincular
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  nota?: string; // enviar "" para limpiar, o texto para actualizar
 }

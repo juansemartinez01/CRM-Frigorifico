@@ -4,6 +4,8 @@ import {
   IsIn,
   IsDateString,
   IsNumberString,
+  IsOptional,
+  MaxLength,
 } from 'class-validator';
 
 export class CreateMovimientoDto {
@@ -18,4 +20,9 @@ export class CreateMovimientoDto {
 
   @IsNumberString()
   monto!: string; // numeric as string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  nota?: string; // texto libre opcional
 }

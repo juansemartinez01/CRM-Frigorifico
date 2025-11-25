@@ -38,4 +38,7 @@ export class MovimientoCuentaCorriente extends TenantBaseEntity {
 
   @Column({ name: 'pedido_id', type: 'uuid', nullable: true })
   pedidoId?: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  nota?: string | null;
 }
