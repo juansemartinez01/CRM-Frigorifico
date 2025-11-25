@@ -24,6 +24,7 @@ import { RolesGuard } from './auth/roles.guard';
 import { TenantGuard } from './common/guards/tenant.guard';
 import { UsersModule } from './modules/users/users.module';
 import { TenantModule } from './modules/tenant/tenant.module';
+import { EstadisticasModule } from './modules/estadisticas/estadisticas.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { TenantModule } from './modules/tenant/tenant.module';
     MovimientoCtaCteModule,
     PedidoImportModule,
     PedidoResolucionModule,
+    EstadisticasModule
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
