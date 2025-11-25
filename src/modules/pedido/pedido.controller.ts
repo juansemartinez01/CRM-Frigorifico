@@ -35,6 +35,15 @@ export class PedidoController {
     return this.service.getPorRemito(numero);
   }
 
+  @Get('por-cliente')
+  async getPorCliente(
+    @Query('clienteId') clienteId: string,
+    @Query('fechaDesde') fechaDesde: string, // YYYY-MM-DD
+    @Query('fechaHasta') fechaHasta: string, // YYYY-MM-DD
+  ) {
+    return this.service.getPorCliente({ clienteId, fechaDesde, fechaHasta });
+  }
+
   @Get()
   search(@Query() filtros: BuscarPedidoDto) {
     return this.service.search(filtros);

@@ -8,7 +8,7 @@ import {
   
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere, DataSource, QueryFailedError } from 'typeorm';
+import { Repository, FindOptionsWhere, DataSource, QueryFailedError, Between } from 'typeorm';
 import { REQUEST } from '@nestjs/core';  
 import { Request } from 'express';
 import { getTenantIdFromReq } from '@app/common/multi-tenant/tenant.util';
@@ -219,7 +219,6 @@ export class PedidoService {
     };
   }
 
- 
   /**
    * Modifica una confirmación existente:
    * - Puede cambiar cliente y/o precio por kilo (recalcula total)
@@ -380,6 +379,86 @@ export class PedidoService {
       saldoCuentaCorriente: saldo,
       warning,
       filas: pedidos, // las mismas columnas que ves en la grilla (eager trae cliente)
+    };
+  }
+
+  async getPorCliente(params: {
+    clienteId: string;
+    fechaDesde: string;
+    fechaHasta: string;
+  }) {
+    const tenantId = this.tenantId();
+    const { clienteId, fechaDesde, fechaHasta } = params || ({} as any);
+
+    if (!clienteId) {
+      throw new BadRequestException('clienteId es requerido');
+    }
+    // Validar fechas básicas (YYYY-MM-DD)
+    const fd = new Date(fechaDesde);
+    const fh = new Date(fechaHasta);
+    if (Number.isNaN(fd.getTime()) || Number.isNaN(fh.getTime())) {
+      throw new BadRequestException(
+        'fechaDesde/fechaHasta inválidas (YYYY-MM-DD)',
+      );
+    }
+    if (fd > fh) {
+      throw new BadRequestException(
+        'fechaDesde no puede ser mayor que fechaHasta',
+      );
+    }
+
+    // Traer todos los pedidos del cliente dentro del rango (con cliente eager)
+    const pedidos = await this.repo.find({
+      where: {
+        tenantId,
+        clienteId,
+        fechaRemito: Between(fechaDesde, fechaHasta),
+      },
+      order: { fechaRemito: 'ASC', articulo: 'ASC', createdAt: 'ASC' },
+    });
+
+    if (!pedidos.length) {
+      throw new NotFoundException(
+        'No hay pedidos para ese cliente en el rango indicado',
+      );
+    }
+
+    // Cliente (eager en los pedidos)
+    const cliente = pedidos[0].cliente;
+
+    // Saldo de cuenta corriente (si no existe aún, saldo 0.00)
+    const ctacte = await this.ccRepo.findOne({
+      where: { tenantId, clienteId },
+    });
+    const saldo = ctacte?.saldo ?? '0.00';
+
+    // Agrupar por número de remito para devolver "exactamente lo mismo por remito"
+    const grupos = new Map<string, typeof pedidos>();
+    for (const p of pedidos) {
+      const key = p.numeroRemito;
+      if (!grupos.has(key)) grupos.set(key, []);
+      grupos.get(key)!.push(p);
+    }
+
+    // Construimos un bloque por cada remito, con la misma forma que getPorRemito
+    const remitos = Array.from(grupos.entries()).map(
+      ([numeroRemito, filas]) => ({
+        ok: true,
+        numeroRemito,
+        cliente,
+        saldoCuentaCorriente: saldo,
+        warning: undefined, // como filtramos por clienteId, no debería haber múltiples clientes por remito
+        filas, // mismas columnas que ves en la grilla (eager trae cliente)
+      }),
+    );
+
+    return {
+      ok: true,
+      cliente,
+      saldoCuentaCorriente: saldo,
+      fechaDesde,
+      fechaHasta,
+      remitos, // array de bloques "idénticos" al getPorRemito original, uno por remito
     };
   }
 }
