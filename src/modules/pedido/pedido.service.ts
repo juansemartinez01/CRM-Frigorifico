@@ -151,13 +151,11 @@ export class PedidoService {
       if (dto.nota) {
         pedido.nota = dto.nota;
       }
-
       if (dto.observaciones) {
         pedido.observaciones = [pedido.observaciones, dto.observaciones]
           .filter(Boolean)
           .join(' | ');
       }
-
       pedido.confirmado = true;
 
       await m.getRepository(Pedido).save(pedido);
@@ -175,10 +173,9 @@ export class PedidoService {
       try {
         await m.getRepository(MovimientoCuentaCorriente).save(mov);
       } catch (err) {
-        // 🧯 Colisión concurrente: índice único (tenant, tipo, pedidoId)
         if (
           err instanceof QueryFailedError &&
-          // @ts-ignore — pg driver
+          // @ts-ignore
           err.driverError?.code === '23505'
         ) {
           throw new ConflictException({
@@ -189,21 +186,18 @@ export class PedidoService {
         throw err;
       }
 
-      // ⬇️⬇️ NUEVO: actualizar saldo de cuenta corriente
-      const ccRepo = m.getRepository(CuentaCorriente);
-      let cuenta = await ccRepo.findOne({
-        where: { tenantId, clienteId: dto.clienteId },
-      });
-      if (!cuenta) {
-        cuenta = ccRepo.create({
-          tenantId,
-          clienteId: dto.clienteId,
-          saldo: '0.00',
-        });
-      }
-      const nuevoSaldo = +(Number(cuenta.saldo ?? 0) + total).toFixed(2);
-      cuenta.saldo = nuevoSaldo.toFixed(2);
-      await ccRepo.save(cuenta);
+      // ⬇️⬇️ Actualización de saldo ATÓMICA para evitar race conditions
+      const inc = total.toFixed(2);
+      await m.query(
+        `
+      INSERT INTO cuenta_corriente (tenant_id, cliente_id, saldo, created_at, updated_at)
+      VALUES ($1, $2, $3, now(), now())
+      ON CONFLICT (tenant_id, cliente_id)
+      DO UPDATE SET saldo = (cuenta_corriente.saldo::numeric) + EXCLUDED.saldo,
+                    updated_at = now();
+      `,
+        [tenantId, dto.clienteId, inc],
+      );
 
       return {
         ok: true,
