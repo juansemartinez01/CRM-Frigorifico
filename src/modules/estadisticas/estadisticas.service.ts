@@ -256,11 +256,10 @@ export class EstadisticasService {
   // 5) RESUMEN (AGRUPA TODO)
   // =========================
   async resumen(f: EstadisticasFiltroDto) {
-    const [deuda, dinero, kilos, mejor] = await Promise.all([
+    const [deuda] = await Promise.all([
       this.deudaPorCliente(f),
-      this.cortesMonto(f),
-      this.cortesKg(f),
-      this.mejorClientePorMes(f),
+   ,
+      
     ]);
 
     return {
@@ -268,10 +267,8 @@ export class EstadisticasService {
       fechaDesde: f.fechaDesde,
       fechaHasta: f.fechaHasta,
       deudaPorCliente: deuda.filas,
-      cortesMonto: dinero.cortes,
-      cortesKg: kilos.cortes,
-      mejorClientePorMes: mejor.porMes,
-      mejorClienteTopGlobal: mejor.topGlobal,
+      
+    
     };
   }
 }
