@@ -219,11 +219,12 @@ export class PedidoService {
     };
   }
 
+ 
   /**
    * Modifica una confirmación existente:
-   * - Actualiza cliente y/o precio por kilo
-   * - Recalcula precioTotal
-   * - Actualiza el movimiento VENTA asociado (o lo recrea, si se pide)
+   * - Puede cambiar cliente y/o precio por kilo (recalcula total)
+   * - Actualiza el movimiento VENTA asociado (o lo recrea)
+   * - Ajusta la(s) cuenta(s) corriente(s): mueve el saldo entre clientes o aplica la diferencia
    */
   async modificarConfirmacion(dto: ModificarConfirmacionDto) {
     const tenantId = this.tenantId();
@@ -238,15 +239,15 @@ export class PedidoService {
 
     return this.ds.transaction(async (m) => {
       const pRepo = m.getRepository(Pedido);
-      const movRepo = m.getRepository(MovimientoCuentaCorriente);
+      const movRep = m.getRepository(MovimientoCuentaCorriente);
 
       const pedido = await pRepo.findOne({
         where: { tenantId, id: dto.pedidoId },
       });
       if (!pedido) throw new NotFoundException('Pedido no encontrado');
 
-      // debe existir confirmación previa (movimiento VENTA asociado)
-      let mov = await movRepo.findOne({
+      // Debe existir confirmación previa (movimiento VENTA asociado)
+      let mov = await movRep.findOne({
         where: { tenantId, tipo: 'VENTA', pedidoId: pedido.id },
       });
       if (!mov) {
@@ -257,19 +258,26 @@ export class PedidoService {
         });
       }
 
-      // aplicar cambios en pedido
+      // Datos originales (para ajustar saldos)
+      const oldClienteId = mov.clienteId;
+      const oldMontoNum = Number(mov.monto ?? 0);
+
+      // Aplicar cambios en pedido
       if (dto.clienteId) pedido.clienteId = dto.clienteId;
 
-      let total: number | undefined;
+      let newTotalNum: number | undefined;
       if (dto.precioUnitario) {
         const precioUnit = Number(dto.precioUnitario);
         if (!isFinite(precioUnit) || precioUnit <= 0) {
           throw new BadRequestException('precioUnitario inválido');
         }
         const kg = Number(pedido.kg ?? 0);
-        total = +(kg * precioUnit).toFixed(2);
+        newTotalNum = +(kg * precioUnit).toFixed(2);
         pedido.precioUnitario = precioUnit.toFixed(2);
-        pedido.precioTotal = total.toFixed(2);
+        pedido.precioTotal = newTotalNum.toFixed(2);
+      } else {
+        // Si no cambiaron el precio, usamos el monto del movimiento como “total actual”
+        newTotalNum = oldMontoNum;
       }
 
       if (dto.observaciones) {
@@ -280,24 +288,50 @@ export class PedidoService {
 
       await pRepo.save(pedido);
 
-      // actualizar o recrear movimiento
+      // Actualizar o recrear movimiento
       if (recrear) {
-        await movRepo.remove(mov);
-        mov = movRepo.create({
+        await movRep.remove(mov);
+        mov = movRep.create({
           tenantId,
-          clienteId: pedido.clienteId, // ya actualizado
+          clienteId: pedido.clienteId,
           tipo: 'VENTA',
           fecha: pedido.fechaRemito ?? new Date(),
-          monto: (total ?? Number(mov.monto)).toFixed(2),
+          monto: newTotalNum!.toFixed(2),
           pedidoId: pedido.id,
         });
-        await movRepo.save(mov);
+        await movRep.save(mov);
       } else {
-        if (dto.clienteId) mov.clienteId = dto.clienteId;
-        if (dto.precioUnitario && typeof total === 'number')
-          mov.monto = total.toFixed(2);
+        if (dto.clienteId) mov.clienteId = pedido.clienteId;
+        if (dto.precioUnitario) mov.monto = newTotalNum!.toFixed(2);
         mov.fecha = pedido.fechaRemito ?? mov.fecha;
-        await movRepo.save(mov);
+        await movRep.save(mov);
+      }
+
+      // === Ajuste de cuentas corrientes (atómico) ===
+      const upsertSaldo = async (clienteId: string, delta: number) => {
+        if (!delta) return;
+        await m.query(
+          `
+        INSERT INTO cuenta_corriente (tenant_id, cliente_id, saldo, created_at, updated_at)
+        VALUES ($1, $2, $3, now(), now())
+        ON CONFLICT (tenant_id, cliente_id)
+        DO UPDATE SET saldo = (cuenta_corriente.saldo::numeric) + EXCLUDED.saldo,
+                      updated_at = now();
+        `,
+          [tenantId, clienteId, delta.toFixed(2)],
+        );
+      };
+
+      const newClienteId = pedido.clienteId;
+
+      if (oldClienteId === newClienteId) {
+        // Mismo cliente: ajustar solo la diferencia
+        const delta = (newTotalNum ?? 0) - oldMontoNum;
+        await upsertSaldo(newClienteId, delta);
+      } else {
+        // Cliente cambiado: restar del viejo y sumar al nuevo
+        await upsertSaldo(oldClienteId, -oldMontoNum);
+        await upsertSaldo(newClienteId, newTotalNum ?? 0);
       }
 
       return {
