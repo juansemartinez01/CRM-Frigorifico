@@ -37,7 +37,6 @@ export class EstadisticasService {
     const tenantId = this.tenantId();
 
     // Ventas (solo confirmadas) por cliente en rango
-    // Sumamos monto de movimientos tipo VENTA que estén asociados a pedidos confirmados en rango
     const ventasQb = this.movRepo
       .createQueryBuilder('m')
       .select('m.clienteId', 'clienteId')
@@ -45,7 +44,7 @@ export class EstadisticasService {
       .leftJoin('m.pedido', 'p')
       .where('m.tenantId = :tenantId', { tenantId })
       .andWhere('m.tipo = :venta', { venta: 'VENTA' })
-      .andWhere('p.id IS NOT NULL') // solo movimientos ligados a pedido
+      .andWhere('p.id IS NOT NULL')
       .andWhere('p.confirmado = true')
       .andWhere('p.fechaRemito BETWEEN :fd AND :fh', {
         fd: fechaDesde,
@@ -78,19 +77,14 @@ export class EstadisticasService {
     }>();
     const cobrosMap = new Map(cobrosRaw.map((r) => [r.clienteId, r.cobros]));
 
-    // Traer clientes del tenant para armar lista consistente
-    const clientes = await this.clienteRepo.find({
-      where: { tenantId },
-    });
+    const clientes = await this.clienteRepo.find({ where: { tenantId } });
 
-    // Construir filas y ordenar por deudaPeriodo DESC
     const filas = await Promise.all(
       clientes.map(async (c) => {
         const ventas = Number(ventasMap.get(c.id) ?? '0');
         const cobros = Number(cobrosMap.get(c.id) ?? '0');
         const deudaPeriodo = +(ventas - cobros).toFixed(2);
 
-        // saldo actual (opcional, fuera de rango; útil para UI)
         const cc = await this.ccRepo.findOne({
           where: { tenantId, clienteId: c.id },
         });
@@ -101,20 +95,14 @@ export class EstadisticasService {
           ventasPeriodo: ventas.toFixed(2),
           cobrosPeriodo: cobros.toFixed(2),
           deudaPeriodo: deudaPeriodo.toFixed(2),
-          saldoActual, // si querés mostrar “morosidad actual”
+          saldoActual,
         };
       }),
     );
 
-    // Orden de "más moroso a menos" por deudaPeriodo
     filas.sort((a, b) => Number(b.deudaPeriodo) - Number(a.deudaPeriodo));
 
-    return {
-      ok: true,
-      fechaDesde,
-      fechaHasta,
-      filas,
-    };
+    return { ok: true, fechaDesde, fechaHasta, filas };
   }
 
   // =========================
@@ -124,12 +112,11 @@ export class EstadisticasService {
     const { fechaDesde, fechaHasta } = f;
     const tenantId = this.tenantId();
 
-    // Sumatoria por articulo del precioTotal de pedidos confirmados en rango
     const qb = this.pedidoRepo
       .createQueryBuilder('p')
       .select('p.articulo', 'articulo')
       .addSelect(
-        'COALESCE(SUM(p."precioTotal"::numeric), 0)::text',
+        'COALESCE(SUM(p."precio_total"::numeric), 0)::text',
         'totalMonto',
       )
       .where('p.tenantId = :tenantId', { tenantId })
@@ -146,12 +133,7 @@ export class EstadisticasService {
       totalMonto: string;
     }>();
 
-    return {
-      ok: true,
-      fechaDesde,
-      fechaHasta,
-      cortes: rows, // [{ articulo, totalMonto }]
-    };
+    return { ok: true, fechaDesde, fechaHasta, cortes: rows };
   }
 
   // =========================
@@ -176,12 +158,7 @@ export class EstadisticasService {
 
     const rows = await qb.getRawMany<{ articulo: string; totalKg: string }>();
 
-    return {
-      ok: true,
-      fechaDesde,
-      fechaHasta,
-      cortes: rows, // [{ articulo, totalKg }]
-    };
+    return { ok: true, fechaDesde, fechaHasta, cortes: rows };
   }
 
   // =========================
@@ -191,7 +168,7 @@ export class EstadisticasService {
     const { fechaDesde, fechaHasta } = f;
     const tenantId = this.tenantId();
 
-    // Sumar cobros por cliente y mes (YYYY-MM)
+    // Cobros por cliente y mes (YYYY-MM)
     const qb = this.movRepo
       .createQueryBuilder('m')
       .select(`to_char(m.fecha::date, 'YYYY-MM')`, 'mes')
@@ -214,7 +191,6 @@ export class EstadisticasService {
       totalCobrado: string;
     }>();
 
-    // Elegimos top por mes
     const porMes = new Map<
       string,
       { mes: string; cliente: Cliente; totalCobrado: string }
@@ -234,7 +210,7 @@ export class EstadisticasService {
       }
     }
 
-    // Top global del período (suma de cobros por cliente en el rango)
+    // Top global del período (suma por cliente sobre todo el rango)
     const topGlobalQb = this.movRepo
       .createQueryBuilder('m')
       .select('m.clienteId', 'clienteId')
@@ -246,8 +222,7 @@ export class EstadisticasService {
         fh: fechaHasta,
       })
       .groupBy('m.clienteId')
-      .addGroupBy(`date_trunc('month', m.fecha)`)
-    .orderBy('SUM(m.monto::numeric)', 'DESC')
+      .orderBy('SUM(m.monto::numeric)', 'DESC')
       .limit(1);
 
     const topGlobalRow = await topGlobalQb.getRawOne<{
@@ -272,8 +247,8 @@ export class EstadisticasService {
       ok: true,
       fechaDesde,
       fechaHasta,
-      porMes: Array.from(porMes.values()), // [{ mes, cliente, totalCobrado }]
-      topGlobal, // mejor cliente del período completo
+      porMes: Array.from(porMes.values()),
+      topGlobal,
     };
   }
 
