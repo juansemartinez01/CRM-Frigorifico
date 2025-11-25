@@ -139,7 +139,7 @@ export class EstadisticasService {
         fh: fechaHasta,
       })
       .groupBy('p.articulo')
-      .orderBy('totalMonto', 'DESC');
+      .orderBy('SUM(p."precio_total"::numeric)', 'DESC');
 
     const rows = await qb.getRawMany<{
       articulo: string;
@@ -172,7 +172,7 @@ export class EstadisticasService {
         fh: fechaHasta,
       })
       .groupBy('p.articulo')
-      .orderBy('totalKg', 'DESC');
+      .orderBy('SUM(p.kg::numeric)', 'DESC');
 
     const rows = await qb.getRawMany<{ articulo: string; totalKg: string }>();
 
@@ -246,7 +246,8 @@ export class EstadisticasService {
         fh: fechaHasta,
       })
       .groupBy('m.clienteId')
-      .orderBy('totalCobrado', 'DESC')
+      .addGroupBy(`date_trunc('month', m.fecha)`)
+    .orderBy('SUM(m.monto::numeric)', 'DESC')
       .limit(1);
 
     const topGlobalRow = await topGlobalQb.getRawOne<{
