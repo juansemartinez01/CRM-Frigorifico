@@ -242,6 +242,7 @@ export class PedidoService {
 
       const pedido = await pRepo.findOne({
         where: { tenantId, id: dto.pedidoId },
+        relations: ['cliente'],
       });
       if (!pedido) throw new NotFoundException('Pedido no encontrado');
 
@@ -335,7 +336,7 @@ export class PedidoService {
 
       const pedidoActualizado = await pRepo.findOne({
         where: { tenantId, id: pedido.id },
-        relations: ['cliente'], // 📌 muuuuy importante
+        relations: ['cliente'], 
       });
 
       const movimientoActualizado = await movRep.findOne({
