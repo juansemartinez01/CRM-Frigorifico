@@ -7,6 +7,7 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { PageQueryDto } from '@app/common/pagination/page-query.dto';
+import { Transform } from 'class-transformer';
 
 export class BuscarMovimientoDto extends PageQueryDto {
   @IsOptional()
@@ -33,12 +34,17 @@ export class BuscarMovimientoDto extends PageQueryDto {
   @IsNumberString()
   montoMax?: string;
 
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return undefined;
+  })
+  @IsBoolean()
+  pagado?: boolean;
+
   // Sólo permitimos ordenar por fecha o createdAt
   @IsOptional()
   @IsIn(['fecha', 'createdAt'])
   sortBy?: 'fecha' | 'createdAt' = 'fecha';
-
-  @IsOptional()
-  @IsBoolean()
-  pagado?: boolean;
 }
