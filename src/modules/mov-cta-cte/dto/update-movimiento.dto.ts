@@ -6,6 +6,7 @@ import {
   IsNumberString,
   MaxLength,
   IsString,
+  IsBoolean,
 } from 'class-validator';
 import { TipoMovimiento } from '../movimiento-cta-cte.entity';
 
@@ -35,4 +36,8 @@ export class UpdateMovimientoDto {
   @IsString()
   @MaxLength(2000)
   nota?: string; // enviar "" para limpiar, o texto para actualizar
+
+  @IsOptional()
+    @IsBoolean()
+    pagado?: boolean;
 }
