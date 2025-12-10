@@ -69,9 +69,10 @@ export class MovimientoCtaCteService {
     if (f.montoMin) qb.andWhere('m.monto >= :min', { min: f.montoMin });
     if (f.montoMax) qb.andWhere('m.monto <= :max', { max: f.montoMax });
 
-    if (f.pagado) {
+    if (f.pagado !== undefined) {
       qb.andWhere('m.pagado = :pagado', { pagado: f.pagado });
     }
+
 
 
     const sortMap = { fecha: 'm.fecha', createdAt: 'm.createdAt' } as const;
