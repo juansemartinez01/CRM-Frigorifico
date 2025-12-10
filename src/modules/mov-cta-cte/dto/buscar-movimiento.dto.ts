@@ -4,6 +4,7 @@ import {
   IsIn,
   IsDateString,
   IsNumberString,
+  IsBoolean,
 } from 'class-validator';
 import { PageQueryDto } from '@app/common/pagination/page-query.dto';
 
@@ -36,4 +37,8 @@ export class BuscarMovimientoDto extends PageQueryDto {
   @IsOptional()
   @IsIn(['fecha', 'createdAt'])
   sortBy?: 'fecha' | 'createdAt' = 'fecha';
+
+  @IsOptional()
+  @IsBoolean()
+  pagado?: boolean;
 }

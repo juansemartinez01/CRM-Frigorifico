@@ -333,10 +333,20 @@ export class PedidoService {
         await upsertSaldo(newClienteId, newTotalNum ?? 0);
       }
 
+      const pedidoActualizado = await pRepo.findOne({
+        where: { tenantId, id: pedido.id },
+        relations: ['cliente'], // 📌 muuuuy importante
+      });
+
+      const movimientoActualizado = await movRep.findOne({
+        where: { tenantId, id: mov.id },
+        relations: ['cliente', 'pedido'],
+      });
+
       return {
         ok: true,
-        pedido,
-        movimiento: mov,
+        pedido: pedidoActualizado,
+        movimiento: movimientoActualizado,
       };
     });
   }

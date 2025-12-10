@@ -69,10 +69,25 @@ export class MovimientoCtaCteService {
     if (f.montoMin) qb.andWhere('m.monto >= :min', { min: f.montoMin });
     if (f.montoMax) qb.andWhere('m.monto <= :max', { max: f.montoMax });
 
+    if (f.pagado !== undefined) {
+      qb.andWhere('m.pagado = :pagado', { pagado: f.pagado });
+    }
+
+
     const sortMap = { fecha: 'm.fecha', createdAt: 'm.createdAt' } as const;
     qb.orderBy(sortMap[f.sortBy || 'fecha'], f.sortDir || 'DESC');
 
     return paginate(qb, f.page, f.limit);
+  }
+
+  async setPagado(id: string, pagado: boolean) {
+    const mov = await this.repo.findOne({
+      where: { id, tenantId: this.tenantId() },
+    });
+    if (!mov) throw new NotFoundException('Movimiento no encontrado');
+
+    mov.pagado = pagado;
+    return this.repo.save(mov);
   }
 
   /**
@@ -192,9 +207,15 @@ export class MovimientoCtaCteService {
       ccNew.saldo = ccNewNuevoSaldo.toFixed(2);
       await ccRepo.save(ccNew);
 
+
+      const updated = await movRepo.findOne({
+        where: { tenantId, id: original.id },
+        relations: ['cliente', 'pedido'], // importante
+      });
+
       return {
         ok: true,
-        movimiento: original,
+        movimiento: updated,
         // útil para UI/debug:
         saldos: {
           [ccOld.clienteId]: ccOld.saldo,

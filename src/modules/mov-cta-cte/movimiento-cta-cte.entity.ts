@@ -41,4 +41,7 @@ export class MovimientoCuentaCorriente extends TenantBaseEntity {
 
   @Column({ type: 'text', nullable: true })
   nota?: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  pagado!: boolean;
 }

@@ -27,4 +27,9 @@ export class MovimientoCtaCteController {
   listByCliente(@Param('clienteId') clienteId: string) {
     return this.service.listByCliente(clienteId);
   }
+
+  @Put(':id/marcar-pagado')
+  marcarPagado(@Param('id') id: string, @Body('pagado') pagado: boolean) {
+    return this.service.setPagado(id, pagado);
+  }
 }
