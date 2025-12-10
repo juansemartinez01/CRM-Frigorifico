@@ -73,7 +73,7 @@ export class MovimientoCtaCteService {
       if (f.pagado) {
         qb.andWhere('m.pagado = :pagado', { pagado: f.pagado });
       }else{
-        qb.andWhere('(m.pagado = false OR m.pagado IS NULL)');
+        qb.andWhere('m.pagado = false OR m.pagado IS NULL');
       }
     }
 
