@@ -263,7 +263,18 @@ export class PedidoService {
       const oldMontoNum = Number(mov.monto ?? 0);
 
       // Aplicar cambios en pedido
-      if (dto.clienteId) pedido.clienteId = dto.clienteId;
+      if (dto.clienteId) {
+        const cRepo = m.getRepository(Cliente);
+        const nuevoCliente = await cRepo.findOne({
+          where: { tenantId, id: dto.clienteId },
+        });
+        if (!nuevoCliente) {
+          throw new NotFoundException('Cliente destino no encontrado');
+        }
+
+        pedido.clienteId = nuevoCliente.id;
+        pedido.cliente = nuevoCliente; // 👈 clave
+      }
 
       let newTotalNum: number | undefined;
       if (dto.precioUnitario) {
