@@ -69,7 +69,7 @@ export class MovimientoCtaCteService {
     if (f.montoMin) qb.andWhere('m.monto >= :min', { min: f.montoMin });
     if (f.montoMax) qb.andWhere('m.monto <= :max', { max: f.montoMax });
 
-    if (f.pagado !== undefined) {
+    if (f.pagado) {
       qb.andWhere('m.pagado = :pagado', { pagado: f.pagado });
     }
 
