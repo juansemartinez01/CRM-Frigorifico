@@ -73,7 +73,7 @@ export class ClienteService {
   }
 
   async findAll() {
-    return this.repo.find({ where: this.whereTenant() });
+    return this.repo.find({ where: this.whereTenant({ activo: true }) });
   }
 
   async findOne(id: string) {
@@ -113,13 +113,17 @@ export class ClienteService {
   }
 
   async findByCuit(cuit: string) {
-    const row = await this.repo.findOne({ where: this.whereTenant({ cuit }) });
+    const row = await this.repo.findOne({
+      where: this.whereTenant({ cuit, activo: true }),
+    });
     if (!row) throw new NotFoundException('Cliente no encontrado');
     return row;
   }
 
   async findByCuitExacto(cuit: string) {
-    const row = await this.repo.findOne({ where: this.whereTenant({ cuit }) });
+    const row = await this.repo.findOne({
+      where: this.whereTenant({ cuit, activo: true }),
+    });
     if (!row) throw new NotFoundException('Cliente no encontrado');
     return row;
   }
@@ -129,7 +133,8 @@ export class ClienteService {
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.razonSocial', 'rs')
       .leftJoinAndSelect('c.revendedor', 'rv')
-      .where('c.tenantId = :tenantId', { tenantId: this.tenantId() });
+      .where('c.tenantId = :tenantId', { tenantId: this.tenantId() })
+      .andWhere('c.activo = true'); // 👈 SOLO ACTIVOS
 
     if (f.cuit) qb.andWhere('c.cuit ILIKE :cuit', { cuit: `%${f.cuit}%` });
     if (f.razonSocialId)
