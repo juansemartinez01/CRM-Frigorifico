@@ -35,4 +35,7 @@ export class Cliente extends TenantBaseEntity {
 
   @Column({ name: 'revendedor_id', type: 'uuid', nullable: true })
   revendedorId?: string | null;
+
+  @Column({ type: 'boolean', default: true })
+  activo!: boolean;
 }
