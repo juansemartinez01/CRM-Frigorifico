@@ -1,5 +1,6 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { CuentaCorrienteService } from './cuenta-corriente.service';
+import { BuscarCuentaCorrienteDto } from './dto/buscar-cuenta-corriente.dto';
 
 @Controller('cuentas-corrientes')
 export class CuentaCorrienteController {
@@ -8,5 +9,10 @@ export class CuentaCorrienteController {
   @Get(':clienteId')
   getByCliente(@Param('clienteId') clienteId: string) {
     return this.service.getByCliente(clienteId);
+  }
+
+  @Get()
+  search(@Query() filtros: BuscarCuentaCorrienteDto) {
+    return this.service.searchAll(filtros);
   }
 }
