@@ -109,11 +109,59 @@ export class PedidoService {
       throw new BadRequestException('precioUnitario inválido');
     }
 
+    
     return this.ds.transaction(async (m) => {
       const pedido = await m.getRepository(Pedido).findOne({
         where: { tenantId, id: dto.pedidoId },
       });
       if (!pedido) throw new NotFoundException('Pedido no encontrado');
+
+      // (Opcional pero recomendado) Lock anti-race
+      await m.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+        `pedido_dup:${tenantId}:${dto.clienteId}:${pedido.fechaRemito}:${pedido.numeroRemito}:${pedido.articulo}:${pedido.cantidad}:${pedido.kg}`,
+      ]);
+
+      const duplicadoReal = await m
+        .getRepository(Pedido)
+        .createQueryBuilder('p')
+        .select(['p.id', 'p.fechaRemito', 'p.numeroRemito'])
+        .where('p.tenantId = :tenantId', { tenantId })
+        .andWhere('p.confirmado = true')
+        .andWhere('p.id <> :pedidoId', { pedidoId: pedido.id })
+        .andWhere('p.clienteId = :clienteId', { clienteId: dto.clienteId })
+        .andWhere('p.fechaRemito = :fechaRemito', {
+          fechaRemito: pedido.fechaRemito,
+        })
+        .andWhere('p.numeroRemito = :numeroRemito', {
+          numeroRemito: pedido.numeroRemito,
+        })
+        .andWhere('p.articulo = :articulo', { articulo: pedido.articulo })
+        .andWhere('p.cantidad = :cantidad', { cantidad: pedido.cantidad })
+        .andWhere('p.kg = :kg', { kg: pedido.kg })
+        .andWhere((qb) => {
+          // ✅ existe movimiento VENTA para ese pedido
+          const sub = qb
+            .subQuery()
+            .select('1')
+            .from(MovimientoCuentaCorriente, 'mov')
+            .where('mov.tenantId = p.tenantId')
+            .andWhere("mov.tipo = 'VENTA'")
+            .andWhere('mov.pedidoId = p.id')
+            .getQuery();
+
+          return `EXISTS ${sub}`;
+        })
+        .getOne();
+
+      if (duplicadoReal) {
+        throw new ConflictException({
+          code: 'DUPLICATE_CONFIRMED_ORDER',
+          message: 'Este pedido ya fue confirmado previamente.',
+          pedidoExistenteId: duplicadoReal.id,
+          fechaRemito: duplicadoReal.fechaRemito,
+          numeroRemito: duplicadoReal.numeroRemito,
+        });
+      }
 
       // ⛔ Pre-chequeo: ¿ya confirmado?
       const existente = await m
